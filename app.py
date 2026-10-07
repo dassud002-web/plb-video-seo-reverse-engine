@@ -179,6 +179,9 @@ def start_analysis():
             # Map frames relative to endpoint
             for f in res.get("timeline_frames", []):
                 f["url"] = f"/api/frames/{task_id}/{f['filename']}"
+            if "visual_intelligence" in res and "evidence_frames" in res["visual_intelligence"]:
+                for f in res["visual_intelligence"]["evidence_frames"]:
+                    f["url"] = f"/api/frames/{task_id}/{f['filename']}"
                 
             TASKS[task_id]["status"] = "completed"
             TASKS[task_id]["progress"] = 100

@@ -59,7 +59,22 @@ def test_live_server():
                 time.sleep(1)
                 
             assert st.get("status") == "completed", f"Analysis did not complete for {name}! Error: {st.get('error')}"
-            print(f"[LIVE SERVER] ✅ {name} 100% COMPLETE on live HTTP server!")
+            res_data = st.get("result", {})
+            vis = res_data.get("visual_intelligence", {})
+            assert vis, f"visual_intelligence missing in {name}!"
+            assert len(vis.get("evidence_frames", [])) >= 5, f"Missing milestone frames in {name}!"
+            kw = res_data.get("reconstructed_seo", {}).get("primary_keyword", "").lower()
+            assert "tjx" not in kw and "watermark" not in kw and "378c9d" not in kw, f"Noise detected in keyword: {kw}"
+            
+            # Verify milestone frame HTTP serving
+            test_frame = vis["evidence_frames"][0]
+            req_frame = urllib.request.Request(f"http://127.0.0.1:5000{test_frame['url']}")
+            with urllib.request.urlopen(req_frame) as resp_frame:
+                assert resp_frame.status == 200
+                assert resp_frame.headers.get("Content-Type") == "image/jpeg"
+                print(f"  [{name}] Milestone frame HTTP serve verified: {test_frame['url']} (200 OK)")
+
+            print(f"[LIVE SERVER] ✅ {name} 100% COMPLETE with Visual Intelligence ({vis['primary_subjects']})!")
             
             # Test Exports
             for exp in ["markdown", "json", "zip"]:

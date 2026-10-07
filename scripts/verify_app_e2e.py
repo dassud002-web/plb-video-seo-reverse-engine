@@ -84,8 +84,10 @@ def run_e2e_verification():
     html = res.data.decode("utf-8")
     assert "PLB Video SEO Reverse Engine" in html, "UI title missing"
     assert "OVERVIEW" in html and "SOURCE SEO" in html and "TIMELINE" in html, "UI tabs missing"
+    assert "VISUAL INTELLIGENCE" in html, "VISUAL INTELLIGENCE tab button missing from UI"
+    assert "tab-vision" in html, "tab-vision pane missing from UI"
     assert "SEO COMPARISON" in html, "SEO comparison table missing from UI"
-    print("✅ GET / returns 200 with full 10-tab dashboard & SEO comparison table.")
+    print("✅ GET / returns 200 with 11 tabs including VISUAL INTELLIGENCE & SEO comparison table.")
     
     # Test GET /api/recent
     res = client.get("/api/recent")
@@ -135,6 +137,20 @@ def run_e2e_verification():
     result = final_task_data["result"]
     assert result, "No result payload returned!"
     
+    # Verify Visual Intelligence Profile
+    print("\n--- STEP 2B: Visual Intelligence & Evidence Verification ---")
+    vis = result.get("visual_intelligence", {})
+    assert vis, "visual_intelligence field missing from analysis result!"
+    assert vis.get("primary_subjects"), "Missing primary_subjects in visual intelligence!"
+    assert vis.get("dominant_colors"), "Missing dominant_colors in visual intelligence!"
+    assert vis.get("confidence_layer"), "Missing confidence_layer in visual intelligence!"
+    assert vis.get("reasoning_chain"), "Missing reasoning_chain in visual intelligence!"
+    assert len(vis.get("evidence_frames", [])) >= 5, f"Expected at least 5 milestone frames, got {len(vis.get('evidence_frames', []))}"
+    milestone_pcts = [f.get("milestone_pct") for f in vis.get("evidence_frames", [])]
+    for pct in ["5%", "25%", "50%", "75%", "95%"]:
+        assert pct in milestone_pcts, f"Milestone {pct} missing from evidence frames: {milestone_pcts}"
+    print(f"✅ Visual Intelligence verified: {vis.get('primary_subjects')} | Milestones: {milestone_pcts}")
+    
     # Verify Ground Truth Source SEO
     orig = result["original_metadata"]
     print("\n--- STEP 3: Source SEO vs. Reconstructed SEO Audit ---")
@@ -156,6 +172,7 @@ def run_e2e_verification():
     assert len(rec["seo_titles"]) == 10, "Expected 10 SEO titles!"
     assert len(rec["retention_titles"]) == 3, "Expected 3 retention titles!"
     assert "tiktok" in rec["platforms"] and "instagram_reels" in rec["platforms"], "Platform packages missing!"
+    assert "test-reel" not in rec["primary_keyword"].lower(), "Filename string found in primary keyword!"
     print("✅ Reconstructed SEO package verified.")
     
     # Verify Evidence Table
@@ -185,7 +202,9 @@ def run_e2e_verification():
     assert res.status_code == 200, f"Markdown export returned {res.status_code}"
     md_content = res.data.decode("utf-8")
     assert "# VIDEO SEO REVERSE-ENGINEERING REPORT" in md_content, "Markdown report header missing"
-    assert "Ground-Truth Original Metadata" in md_content, "Ground truth section missing"
+    assert "ORIGINAL SOURCE SEO" in md_content, "Original Source SEO section missing"
+    assert "VISUAL FACTS" in md_content, "Visual Facts section missing"
+    assert "RECONSTRUCTED SEO" in md_content, "Reconstructed SEO section missing"
     print(f"✅ Markdown export verified: {len(md_content)} chars")
     
     # Check JSON Export
@@ -258,6 +277,14 @@ def run_e2e_verification():
         print(f"  ✅ Audio analysis: {coop_res['audio_analysis']['summary']}")
         print(f"  ✅ C2PA status: present={coop_res['c2pa_provenance']['present']}")
         
+        # Verify Visual Intelligence & Noise Suppression
+        assert "visual_intelligence" in coop_res, "visual_intelligence missing in Chicken Coop!"
+        assert len(coop_res["visual_intelligence"]["evidence_frames"]) >= 5, "Missing milestone frames in Chicken Coop"
+        assert "tjx" not in coop_res["reconstructed_seo"]["primary_keyword"].lower(), "TJX in Chicken Coop primary keyword!"
+        assert "watermark" not in coop_res["reconstructed_seo"]["primary_keyword"].lower(), "Watermark in Chicken Coop primary keyword!"
+        assert coop_res["original_metadata"]["title"] == "[NOT PRESENT IN SOURCE]", "Chicken Coop original title should be not present in source!"
+        print("  ✅ Chicken Coop visual intelligence & noise suppression verified.")
+        
         # Check exports for Chicken Coop
         res_md = client.get(f"/api/export/markdown/{coop_task_id}")
         assert res_md.status_code == 200, "Markdown export failed for Chicken Coop"
@@ -311,6 +338,8 @@ def run_e2e_verification():
         print(f"  ✅ Titles Count:    {len(seo['seo_titles'])}")
         
         # Assertions
+        assert "visual_intelligence" in rabbits_res, "visual_intelligence missing in Rabbits result!"
+        assert len(rabbits_res["visual_intelligence"]["evidence_frames"]) >= 5, "Missing milestone frames in Rabbits result!"
         assert "378c9d" not in seo["primary_keyword"], "Hash 378c9d found in primary keyword!"
         assert "tjx" not in seo["primary_keyword"].lower(), "TJX found in primary keyword!"
         assert "watermark" not in seo["primary_keyword"].lower(), "Watermark found in primary keyword!"
@@ -318,6 +347,7 @@ def run_e2e_verification():
         assert rabbits_res["original_metadata"]["title"] == "[NOT PRESENT IN SOURCE]", "Invented original title!"
         assert rabbits_res["original_metadata"]["caption_main"] == "[NOT PRESENT IN SOURCE]", "Invented original caption!"
         print("  ✅ Strict boundary verified: Original SEO marked [NOT PRESENT IN SOURCE]")
+        print(f"  ✅ Visual Intelligence verified: {rabbits_res['visual_intelligence']['primary_subjects']} | Colors: {rabbits_res['visual_intelligence']['dominant_colors']}")
         print("  ✅ Reconstructed SEO derived from observed video facts with zero filename noise.")
         
         # Check exports for Rabbits
