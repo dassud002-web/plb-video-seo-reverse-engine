@@ -52,6 +52,48 @@ A forensic, non-destructive reverse-engineering toolchain and automated GitHub A
 
 ---
 
+---
+
+## Creator Desktop & Web Application
+
+The project includes an interactive, local-first Desktop and Web Application UI designed for creators and forensic researchers.
+
+### 🚀 Launching the App
+
+**Option 1: Windows 1-Click Launch**
+```cmd
+run_app.bat
+```
+
+**Option 2: Python Desktop Launcher**
+```bash
+python run_app.py
+```
+*(Automatically opens your default web browser to `http://127.0.0.1:5000`)*
+
+### 🖥️ Creator Interface Capabilities
+
+1. **Drag & Drop / File Picker**: Select any local MP4, MOV, MKV, or WebM video file.
+2. **Instant Pre-Flight Scan**: Non-destructively inspects resolution, duration, codecs, container, and automatically locates accompanying sidecar files (`Caption.md`, `*.txt`, `*.json`, `*.yaml`).
+3. **Live Progress Dashboard**: Displays real-time progress percentage and stage descriptions as forensic extraction occurs.
+4. **10-Tab Results Dashboard**:
+   * **`OVERVIEW`**: File attributes, AI provenance status, content classification, and target audience.
+   * **`SOURCE SEO`**: Original ground truth metadata with a dedicated **Side-by-Side SEO Comparison Table** (`ORIGINAL SOURCE SEO vs RECONSTRUCTED / OPTIMIZED SEO`).
+   * **`VIDEO FORENSICS`**: Codec profiles, dimensions, FPS, progressive scan, container atoms, and GOP structure.
+   * **`TIMELINE`**: 12 sampled visual frames with editorial markers (0–3s Hook Window, Action Progression, Payoff).
+   * **`AUDIO`**: Sample rate, layout, RMS dynamics, peak dBFS, and speech/music/SFX classification.
+   * **`C2PA / PROVENANCE`**: Cryptographic Content Credentials, AI model names (`SeaDance 2.5`), and signing authorities.
+   * **`RECONSTRUCTED SEO`**: Primary topic, keyword clusters, 10 SEO titles, 3 high-retention titles, and hooks.
+   * **`PLATFORM PACKAGES`**: Formatted copy packages for TikTok, Instagram Reels, Facebook Reels, and YouTube Shorts with 1-click copy buttons.
+   * **`EVIDENCE`**: Audit-grade Master Evidence Table strictly demarcating **Facts**, **Inferences**, and **Unknowns**.
+   * **`REPORT`**: Live rendered viewer for `VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md`.
+5. **Multiple Export Options**:
+   * 📄 **Download Report (.md)**: Standard Markdown audit report.
+   * 📊 **Export JSON**: Full structured metadata payload.
+   * 📦 **Export ZIP Bundle**: Complete archive containing the Markdown report, JSON data, and all extracted timeline keyframe JPEGs.
+
+---
+
 ## Directory Structure
 
 ```
@@ -62,9 +104,17 @@ plb-video-seo-reverse-engine/
 ├── input/
 │   └── .gitkeep                      # Target directory for input/target.mp4
 ├── scripts/
-│   └── video_seo_reverse_engineer.py # Reusable core reverse-engineering engine
+│   ├── __init__.py                   # Package marker
+│   ├── video_seo_reverse_engineer.py # Reusable core reverse-engineering engine
+│   └── verify_app_e2e.py             # End-to-end automated verification test suite
+├── templates/
+│   └── index.html                    # Dark-mode Creator Web & Desktop UI (10 tabs)
+├── app.py                            # Flask desktop/web API server
+├── run_app.py                        # Python launcher (auto-opens browser)
+├── run_app.bat                       # Windows 1-click batch launcher
 ├── requirements.txt                  # Python runtime dependencies
-├── README.md                         # Documentation and usage guide
+├── README.md                         # Complete documentation and usage guide
+├── video_seo_reverse_engineer.py     # Root convenience wrapper
 └── VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md # Generated audit report sample
 ```
 
@@ -72,7 +122,7 @@ plb-video-seo-reverse-engine/
 
 ## Local CLI Usage
 
-You can also run the engine directly on any local video asset outside of Git:
+You can also run the engine directly from the command line outside of the web UI:
 
 ```bash
 python scripts/video_seo_reverse_engineer.py \

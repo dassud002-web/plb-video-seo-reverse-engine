@@ -13,3 +13,7 @@ Thumbs.db
 # Ensure input directory and video assets are tracked
 !input/
 !input/**
+
+# Application cache and runtime uploads
+cache_analysis/
+temp_uploads/
