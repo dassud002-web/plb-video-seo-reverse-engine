@@ -1,24 +1,21 @@
 name: Video SEO Reverse Engineering
 
 on:
-  workflow_dispatch:
-    inputs:
-      video_path:
-        description: "Local path to target video inside repo (e.g., sample/video.mp4)"
-        required: false
-        default: "sample/test-reel.mp4"
-      video_url:
-        description: "Direct download URL for remote video (optional)"
-        required: false
-        default: ""
   push:
     branches: [ main, master ]
     paths:
+      - 'input/**'
       - 'scripts/**'
       - 'requirements.txt'
       - '.github/workflows/video-seo.yml'
   pull_request:
     branches: [ main, master ]
+    paths:
+      - 'input/**'
+      - 'scripts/**'
+      - 'requirements.txt'
+      - '.github/workflows/video-seo.yml'
+  workflow_dispatch:
 
 jobs:
   analyze-video:
@@ -45,57 +42,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Prepare Video Target
-        id: prep_video
+      - name: Verify Target Video Exists
         run: |
-          TARGET_VIDEO="${{ github.event.inputs.video_path }}"
-          VIDEO_URL="${{ github.event.inputs.video_url }}"
-          
-          if [ -n "$VIDEO_URL" ]; then
-            mkdir -p downloads
-            echo "Downloading video from $VIDEO_URL..."
-            curl -L -o downloads/input_video.mp4 "$VIDEO_URL"
-            TARGET_VIDEO="downloads/input_video.mp4"
+          if [ ! -f "input/target.mp4" ]; then
+            echo "::error::Target video 'input/target.mp4' does not exist!"
+            echo "--------------------------------------------------------"
+            echo "ACTION REQUIRED:"
+            echo "1. Copy your video to: input/target.mp4"
+            echo "2. Run: git add input/target.mp4"
+            echo "3. Run: git commit -m 'feat: analyze new video'"
+            echo "4. Run: git push"
+            echo "--------------------------------------------------------"
+            exit 1
           fi
-          
-          if [ -z "$TARGET_VIDEO" ]; then
-            TARGET_VIDEO="sample/test-reel.mp4"
-          fi
-          
-          # If target video does not exist yet (e.g. on generic push), generate test synthetic sample
-          if [ ! -f "$TARGET_VIDEO" ]; then
-            echo "Target video not found on disk. Creating lightweight test pattern MP4..."
-            mkdir -p sample
-            TARGET_VIDEO="sample/test-reel.mp4"
-            ffmpeg -y -f lavfi -i testsrc=size=720x1280:rate=24 -f lavfi -i sine=frequency=440:sample_rate=32000 -t 5 -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 128k "$TARGET_VIDEO"
-            
-            # Create a sample Caption.md to test sidecar metadata discovery
-            cat << 'EOF' > sample/Caption.md
-# Sample Test Reel
-
-## Caption (Option A - Main)
-Sample test caption for automated CI runner testing 😂💦
-
-## Hashtags
-#test #ci #reverseengineering #video
-
-## Pinned Comment
-Automated CI run verified!
-EOF
-          fi
-          
-          echo "selected_video=$TARGET_VIDEO" >> $GITHUB_OUTPUT
+          echo "Target video confirmed: input/target.mp4"
 
       - name: Run Reverse Engineering Engine
         run: |
           python scripts/video_seo_reverse_engineer.py \
-            --video "${{ steps.prep_video.outputs.selected_video }}" \
-            --output "VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md"
+            --video input/target.mp4 \
+            --output VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md
 
       - name: Verify Report Generated
         run: |
           if [ ! -f "VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md" ]; then
-            echo "Error: VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md was not generated!"
+            echo "::error::VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md was not generated!"
             exit 1
           fi
           echo "Generated report preview:"
@@ -108,9 +79,10 @@ EOF
           path: VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md
           if-no-files-found: error
 
-      - name: Upload Extracted Keyframes (If Available)
+      - name: Upload Extracted Keyframes (If Generated)
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: extracted-keyframes
-          path: sample/*_frames/*.jpg
-          if-no-files-found: warn
+          path: input/target_frames/*.jpg
+          if-no-files-found: ignore

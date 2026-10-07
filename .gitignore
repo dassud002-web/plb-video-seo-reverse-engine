@@ -9,3 +9,7 @@ __pycache__/
 downloads/
 .DS_Store
 Thumbs.db
+
+# Ensure input directory and video assets are tracked
+!input/
+!input/**

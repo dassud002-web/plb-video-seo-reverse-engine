@@ -1,4 +1,4 @@
-# PLB Video SEO Reverse Engineering Engine
+# PLB Video SEO Reverse Engineering Engine (V2)
 
 [![Video SEO Reverse Engineering](https://github.com/dassud002-web/plb-video-seo-reverse-engine/actions/workflows/video-seo.yml/badge.svg)](https://github.com/dassud002-web/plb-video-seo-reverse-engine/actions/workflows/video-seo.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -7,7 +7,36 @@
 
 > **Repository**: [https://github.com/dassud002-web/plb-video-seo-reverse-engine](https://github.com/dassud002-web/plb-video-seo-reverse-engine)
 
-A forensic, non-destructive reverse-engineering toolchain and workflow designed to extract, analyze, and optimize metadata from short-form and long-form video files (TikTok, Instagram Reels, YouTube Shorts, Facebook Reels).
+A forensic, non-destructive reverse-engineering toolchain and automated GitHub Actions workflow designed to extract, analyze, and optimize metadata from short-form and long-form video files (TikTok, Instagram Reels, YouTube Shorts, Facebook Reels).
+
+---
+
+## V2 End-to-End Workflow
+
+**`LOCAL VIDEO → GIT PUSH → GITHUB ACTIONS → SEO REPORT ARTIFACT`**
+
+### LOCAL:
+
+1. **Copy video to**:
+   ```
+   input/target.mp4
+   ```
+
+2. **Run**:
+   ```bash
+   git add input/target.mp4
+   git commit -m "feat: analyze new video"
+   git push
+   ```
+
+3. **GitHub Actions automatically analyzes the video**.
+
+4. **Download the generated**:
+   ```
+   VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md
+   ```
+
+*(You can also place optional sidecar files like `input/Caption.md`, `input/notes.txt`, or `input/metadata.json` in the `input/` directory to have their original metadata automatically integrated).*
 
 ---
 
@@ -18,7 +47,7 @@ A forensic, non-destructive reverse-engineering toolchain and workflow designed 
 3. **No Hallucinations**: When an original metadata field is absent in source files, it is explicitly stamped as `[NOT PRESENT IN SOURCE]`.
 4. **C2PA Cryptographic Provenance**: Automatically detects ISO 19566-5 JUMBF boxes and Content Credentials (C2PA) manifests to identify generative AI foundation models (e.g. ByteDance/BytePlus SeaDance 2.5), digital source types, and signing authorities.
 5. **Acoustic Waveform Analysis**: Decodes audio into uncompressed PCM to perform RMS energy profiling, peak detection, sub-band FFT spectral decomposition, and normalized autocorrelation for pitch/melody detection (distinguishing speech, music, and environmental sound effects).
-6. **Timeline Frame Extraction**: Captures 12–14 critical editorial keyframes covering the 0–3s hook window, action progression, landscape depth, and payoff ending.
+6. **Timeline Frame Extraction**: Captures critical editorial keyframes covering the 0–3s hook window, action progression, landscape depth, and payoff ending.
 7. **Burned-In OCR & Watermark Scanning**: Analyzes top/bottom letterboxes, lower-thirds, and borders to verify unbranded raw footage vs. platform watermarks.
 
 ---
@@ -29,7 +58,9 @@ A forensic, non-destructive reverse-engineering toolchain and workflow designed 
 plb-video-seo-reverse-engine/
 ├── .github/
 │   └── workflows/
-│       └── video-seo.yml             # Automated CI & Workflow Dispatch runner
+│       └── video-seo.yml             # Automated CI runner for input/target.mp4
+├── input/
+│   └── .gitkeep                      # Target directory for input/target.mp4
 ├── scripts/
 │   └── video_seo_reverse_engineer.py # Reusable core reverse-engineering engine
 ├── requirements.txt                  # Python runtime dependencies
@@ -39,50 +70,20 @@ plb-video-seo-reverse-engine/
 
 ---
 
-## Installation & Prerequisites
+## Local CLI Usage
 
-### 1. System Requirements
-* **Python 3.10+**
-* **FFmpeg & FFprobe** (must be on system `PATH`):
-  * **macOS**: `brew install ffmpeg`
-  * **Ubuntu/Debian**: `sudo apt-get install -y ffmpeg`
-  * **Windows**: `choco install ffmpeg` or `winget install Gyan.FFmpeg`
-
-### 2. Install Python Dependencies
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## Usage
-
-### Run Locally on Any Video Asset
-
-To analyze any local video and its accompanying sidecars:
+You can also run the engine directly on any local video asset outside of Git:
 
 ```bash
 python scripts/video_seo_reverse_engineer.py \
-  --video "/path/to/your/video.mp4" \
+  --video "input/target.mp4" \
   --output "VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md"
 ```
 
-#### Optional CLI Arguments:
+### CLI Arguments:
 * `--video`: *(Required)* Path to the local video file.
 * `--output`: *(Optional)* Path to output markdown report (default: `VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md`).
 * `--frames-dir`: *(Optional)* Custom directory to save extracted timeline JPEG frames.
-
----
-
-## GitHub Actions Automated CI Runner
-
-The repository includes `.github/workflows/video-seo.yml`, which runs automatically on push/PR and supports manual trigger (`workflow_dispatch`):
-
-1. Go to the **Actions** tab on GitHub.
-2. Select **Video SEO Reverse Engineering**.
-3. Click **Run workflow**.
-4. *(Optional)* Provide a `video_path` inside the repo or a direct `video_url` download link.
-5. Upon completion, download the audit report artifact `video-seo-reverse-engineering-report` containing the generated `VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md`.
 
 ---
 
