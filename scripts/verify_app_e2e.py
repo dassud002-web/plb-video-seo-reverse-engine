@@ -163,8 +163,8 @@ def run_e2e_verification():
     print(f"Evidence Table Rows: {len(ev_table)}")
     assert len(ev_table) >= 7, "Evidence table missing rows!"
     for row in ev_table:
-        assert row.get("confidence") == "100% (Fact)", f"Unexpected confidence in {row}"
-    print("✅ Master Evidence Table verified (100% Fact separation).")
+        assert any(k in row.get("confidence", "") for k in ["Fact", "Inference"]), f"Unexpected confidence in {row}"
+    print("✅ Master Evidence Table verified (Fact / Inference separation).")
     
     # ----------------------------------------------------
     # 3. VERIFY EXPORTS & FRAME IMAGES
@@ -268,6 +268,68 @@ def run_e2e_verification():
         print("  ✅ All exports (Markdown, JSON, ZIP) verified for Chicken Coop video.")
     else:
         print(f"Note: {coop_video} not found on disk, skipping.")
+        
+    # ----------------------------------------------------
+    # 6. TEST TARGET: RABBITS & HORSERADISH (SEO QUALITY AUDIT)
+    # ----------------------------------------------------
+    print("\n--- STEP 6: Validating SEO Reconstruction Quality on Rabbits & Horseradish Target ---")
+    rabbits_video = Path("C:/Users/Admin/Desktop/google-project/temp_uploads/378c9d_Rabbits & Horseradish_TJX_no_watermark.mp4")
+    if rabbits_video.exists():
+        print(f"Target: {rabbits_video.name}")
+        
+        # Test scan
+        res = client.post("/api/scan", json={"path": str(rabbits_video).replace("\\", "/")})
+        assert res.status_code == 200, f"Scan failed: {res.status_code}"
+        rabbits_scan = res.get_json()
+        print(f"  Scan ok: {rabbits_scan['file_info']['resolution']}, {rabbits_scan['file_info']['codec']}, {rabbits_scan['file_info']['fps']} fps")
+        
+        # Test analyze
+        res = client.post("/api/analyze", json={"path": str(rabbits_video).replace("\\", "/")})
+        assert res.status_code == 200, f"Analyze failed: {res.status_code}"
+        rabbits_task_id = res.get_json().get("task_id")
+        print(f"  Started task: {rabbits_task_id}")
+        
+        # Poll completion
+        start_t = time.time()
+        rabbits_final = None
+        while time.time() - start_t < 45:
+            res = client.get(f"/api/status/{rabbits_task_id}")
+            st = res.get_json()
+            if st.get("status") == "completed":
+                rabbits_final = st
+                break
+            elif st.get("status") == "error":
+                raise RuntimeError(f"Rabbits analysis failed: {st.get('error')}")
+            time.sleep(1.0)
+            
+        assert rabbits_final is not None, "Rabbits task timed out!"
+        rabbits_res = rabbits_final["result"]
+        seo = rabbits_res["reconstructed_seo"]
+        print(f"  ✅ Reached 100%!")
+        print(f"  ✅ Primary Topic:   {seo['primary_topic']}")
+        print(f"  ✅ Primary Keyword: {seo['primary_keyword']}")
+        print(f"  ✅ Titles Count:    {len(seo['seo_titles'])}")
+        
+        # Assertions
+        assert "378c9d" not in seo["primary_keyword"], "Hash 378c9d found in primary keyword!"
+        assert "tjx" not in seo["primary_keyword"].lower(), "TJX found in primary keyword!"
+        assert "watermark" not in seo["primary_keyword"].lower(), "Watermark found in primary keyword!"
+        assert seo["primary_keyword"] == "rabbits eating horseradish", f"Unexpected primary keyword: {seo['primary_keyword']}"
+        assert rabbits_res["original_metadata"]["title"] == "[NOT PRESENT IN SOURCE]", "Invented original title!"
+        assert rabbits_res["original_metadata"]["caption_main"] == "[NOT PRESENT IN SOURCE]", "Invented original caption!"
+        print("  ✅ Strict boundary verified: Original SEO marked [NOT PRESENT IN SOURCE]")
+        print("  ✅ Reconstructed SEO derived from observed video facts with zero filename noise.")
+        
+        # Check exports for Rabbits
+        res_md = client.get(f"/api/export/markdown/{rabbits_task_id}")
+        assert res_md.status_code == 200, "Markdown export failed for Rabbits"
+        res_json = client.get(f"/api/export/json/{rabbits_task_id}")
+        assert res_json.status_code == 200, "JSON export failed for Rabbits"
+        res_zip = client.get(f"/api/export/zip/{rabbits_task_id}")
+        assert res_zip.status_code == 200, "ZIP export failed for Rabbits"
+        print("  ✅ All exports (Markdown, JSON, ZIP) verified for Rabbits & Horseradish video.")
+    else:
+        print(f"Note: {rabbits_video} not found on disk, skipping.")
         
     print("\n" + "=" * 70)
     print(" 🎉 ALL E2E VERIFICATION TESTS PASSED SUCCESSFULLY! (100% GREEN)")

@@ -23,6 +23,7 @@ def test_live_server():
             print("[LIVE SERVER] GET / => HTTP 200 OK")
             
         test_videos = [
+            ("Rabbits & Horseradish Target", "C:/Users/Admin/Desktop/google-project/temp_uploads/378c9d_Rabbits & Horseradish_TJX_no_watermark.mp4"),
             ("Chicken Coop Video", "C:/Users/Admin/Downloads/vid/Chicken Coop Video_TJX_no_watermark.mp4"),
             ("Active Investigation Target", "C:/Users/Admin/Downloads/test-reel/test-reel.mp4")
         ]
