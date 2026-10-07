@@ -1273,18 +1273,18 @@
     // 5. Audio
     const au = result.audio_analysis;
     const astream = tm.streams.find(s => s.type === 'audio') || {};
-    document.getElementById('au-codec').innerText = `${astream.codec || 'AAC'}`;
-    document.getElementById('au-layout').innerText = `${astream.channels} Channels (${astream.channel_layout})`;
-    document.getElementById('au-rate').innerText = `${astream.sample_rate_hz} Hz (${astream.bitrate_kbps} kbps)`;
-    document.getElementById('au-energy').innerText = `RMS: ${au.overall_rms_dbfs} dBFS | Peak: ${au.peak_dbfs} dBFS`;
+    document.getElementById('au-codec').innerText = astream.codec ? astream.codec : (au.has_audio ? 'Detected' : 'None');
+    document.getElementById('au-layout').innerText = astream.channels ? `${astream.channels} Channels (${astream.channel_layout || 'Stereo'})` : 'No audio channels';
+    document.getElementById('au-rate').innerText = astream.sample_rate_hz ? `${astream.sample_rate_hz} Hz (${astream.bitrate_kbps ? astream.bitrate_kbps + ' kbps' : 'N/A'})` : 'N/A';
+    document.getElementById('au-energy').innerText = au.has_audio ? `RMS: ${au.overall_rms_dbfs} dBFS | Peak: ${au.peak_dbfs} dBFS` : 'N/A (No usable audio stream)';
     document.getElementById('au-class').innerText = au.summary;
 
     // 6. C2PA
     const c2 = result.c2pa_provenance;
     document.getElementById('c2pa-uuid').innerText = c2.uuid || 'None';
-    document.getElementById('c2pa-model').innerText = c2.model_name || 'Standard camera / none';
+    document.getElementById('c2pa-model').innerText = c2.present ? (c2.model_name || 'Standard camera / none') : 'None (Camera or Non-C2PA Media)';
     document.getElementById('c2pa-gen').innerText = c2.generator_tool || 'None';
-    document.getElementById('c2pa-source').innerText = c2.digital_source_type || 'Standard';
+    document.getElementById('c2pa-source').innerText = c2.digital_source_type || 'Standard / Camera';
     document.getElementById('c2pa-time').innerText = c2.timestamp || 'Not recorded';
 
     // 7. Reconstructed SEO

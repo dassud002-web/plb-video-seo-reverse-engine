@@ -123,9 +123,9 @@ def scan_video():
                 "size_bytes": tech_meta.get("file_size_bytes"),
                 "duration_seconds": tech_meta.get("duration_seconds"),
                 "format": tech_meta.get("format_name"),
-                "codec": v_stream.get("codec"),
+                "codec": v_stream.get("codec") or "Unknown",
                 "resolution": f"{v_stream.get('width', '?')}x{v_stream.get('height', '?')}",
-                "fps": v_stream.get("fps")
+                "fps": v_stream.get("fps") or 24.0
             },
             "sidecars_found": [Path(f).name for f in source_ev.get("found_files", [])]
         })
@@ -186,6 +186,8 @@ def start_analysis():
             TASKS[task_id]["result"] = res
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             if task_id in TASKS:
                 TASKS[task_id]["status"] = "error"
                 TASKS[task_id]["error"] = str(e)

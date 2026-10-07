@@ -218,6 +218,57 @@ def run_e2e_verification():
         temp_zip_file.unlink()
     print("✅ ZIP bundle export verified: contains report, JSON, and extracted frames.")
     
+    # ----------------------------------------------------
+    # 5. TEST SECOND TARGET: CHICKEN COOP VIDEO (PREVIOUSLY FAILING ASSET)
+    # ----------------------------------------------------
+    print("\n--- STEP 5: Validating Previously Failing Target (Chicken Coop Video) ---")
+    coop_video = Path("C:/Users/Admin/Downloads/vid/Chicken Coop Video_TJX_no_watermark.mp4")
+    if coop_video.exists():
+        print(f"Target: {coop_video.name}")
+        
+        # Test scan
+        res = client.post("/api/scan", json={"path": str(coop_video).replace("\\", "/")})
+        assert res.status_code == 200, f"Scan failed: {res.status_code}"
+        coop_scan = res.get_json()
+        print(f"  Scan ok: {coop_scan['file_info']['resolution']}, {coop_scan['file_info']['codec']}, {coop_scan['file_info']['fps']} fps")
+        
+        # Test analyze
+        res = client.post("/api/analyze", json={"path": str(coop_video).replace("\\", "/")})
+        assert res.status_code == 200, f"Analyze failed: {res.status_code}"
+        coop_task_id = res.get_json().get("task_id")
+        print(f"  Started task: {coop_task_id}")
+        
+        # Poll completion
+        start_t = time.time()
+        coop_final = None
+        while time.time() - start_t < 45:
+            res = client.get(f"/api/status/{coop_task_id}")
+            st = res.get_json()
+            if st.get("status") == "completed":
+                coop_final = st
+                break
+            elif st.get("status") == "error":
+                raise RuntimeError(f"Chicken Coop analysis failed: {st.get('error')}")
+            time.sleep(1.0)
+            
+        assert coop_final is not None, "Chicken Coop task timed out!"
+        coop_res = coop_final["result"]
+        print(f"  ✅ Reached 100%! Topic: {coop_res['reconstructed_seo']['primary_topic']}")
+        print(f"  ✅ Titles count: {len(coop_res['reconstructed_seo']['seo_titles'])}")
+        print(f"  ✅ Audio analysis: {coop_res['audio_analysis']['summary']}")
+        print(f"  ✅ C2PA status: present={coop_res['c2pa_provenance']['present']}")
+        
+        # Check exports for Chicken Coop
+        res_md = client.get(f"/api/export/markdown/{coop_task_id}")
+        assert res_md.status_code == 200, "Markdown export failed for Chicken Coop"
+        res_json = client.get(f"/api/export/json/{coop_task_id}")
+        assert res_json.status_code == 200, "JSON export failed for Chicken Coop"
+        res_zip = client.get(f"/api/export/zip/{coop_task_id}")
+        assert res_zip.status_code == 200, "ZIP export failed for Chicken Coop"
+        print("  ✅ All exports (Markdown, JSON, ZIP) verified for Chicken Coop video.")
+    else:
+        print(f"Note: {coop_video} not found on disk, skipping.")
+        
     print("\n" + "=" * 70)
     print(" 🎉 ALL E2E VERIFICATION TESTS PASSED SUCCESSFULLY! (100% GREEN)")
     print("=" * 70)

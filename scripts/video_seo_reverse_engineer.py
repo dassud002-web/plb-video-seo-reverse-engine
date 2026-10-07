@@ -143,19 +143,39 @@ def extract_technical_metadata(video_path: Path):
         probe = json.loads(res.stdout)
         
         format_info = probe.get("format", {})
-        meta["duration_seconds"] = round(float(format_info.get("duration", 0)), 2)
-        meta["total_bitrate_kbps"] = round(float(format_info.get("bit_rate", 0)) / 1000, 2)
+        dur_val = format_info.get("duration")
+        if dur_val is not None:
+            try:
+                meta["duration_seconds"] = round(float(dur_val), 2)
+            except (ValueError, TypeError):
+                meta["duration_seconds"] = 0.0
+                
+        br_val = format_info.get("bit_rate")
+        if br_val is not None:
+            try:
+                meta["total_bitrate_kbps"] = round(float(br_val) / 1000.0, 2)
+            except (ValueError, TypeError):
+                meta["total_bitrate_kbps"] = 0.0
+                
         meta["format_name"] = format_info.get("format_name", "unknown")
         meta["format_tags"] = format_info.get("tags", {})
         
         for s in probe.get("streams", []):
             stype = s.get("codec_type")
+            s_br = s.get("bit_rate")
+            s_bitrate_kbps = None
+            if s_br is not None:
+                try:
+                    s_bitrate_kbps = round(float(s_br) / 1000.0, 2)
+                except (ValueError, TypeError):
+                    s_bitrate_kbps = None
+                    
             sdata = {
                 "type": stype,
                 "codec": s.get("codec_name"),
                 "codec_long": s.get("codec_long_name"),
                 "profile": s.get("profile"),
-                "bitrate_kbps": round(float(s.get("bit_rate", 0)) / 1000, 2) if s.get("bit_rate") else None
+                "bitrate_kbps": s_bitrate_kbps
             }
             if stype == "video":
                 fps_val = 24.0
@@ -163,29 +183,43 @@ def extract_technical_metadata(video_path: Path):
                 if "/" in r_fps:
                     try:
                         num, den = r_fps.split("/")
-                        fps_val = round(float(num) / float(den), 2)
-                    except Exception:
-                        pass
+                        den_f = float(den)
+                        num_f = float(num)
+                        if den_f > 0:
+                            fps_val = round(num_f / den_f, 2)
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        fps_val = 24.0
                 elif r_fps:
                     try:
                         fps_val = float(r_fps)
-                    except Exception:
-                        pass
+                    except (ValueError, TypeError):
+                        fps_val = 24.0
+                        
+                nb_frames_raw = s.get("nb_frames")
+                nb_frames = None
+                if nb_frames_raw and str(nb_frames_raw).isdigit():
+                    nb_frames = int(nb_frames_raw)
+                    
                 sdata.update({
                     "width": s.get("width"),
                     "height": s.get("height"),
-                    "aspect_ratio": f"{s.get('width')}:{s.get('height')}",
+                    "aspect_ratio": f"{s.get('width')}:{s.get('height')}" if s.get("width") and s.get("height") else "Unknown",
                     "fps": fps_val,
-                    "total_frames": int(s.get("nb_frames", 0)) if s.get("nb_frames") else None,
+                    "total_frames": nb_frames,
                     "pix_fmt": s.get("pix_fmt"),
                     "has_b_frames": s.get("has_b_frames"),
                     "level": s.get("level")
                 })
             elif stype == "audio":
+                sample_rate_raw = s.get("sample_rate")
+                sample_rate_hz = None
+                if sample_rate_raw and str(sample_rate_raw).isdigit():
+                    sample_rate_hz = int(sample_rate_raw)
+                    
                 sdata.update({
                     "channels": s.get("channels"),
                     "channel_layout": s.get("channel_layout"),
-                    "sample_rate_hz": int(s.get("sample_rate", 0))
+                    "sample_rate_hz": sample_rate_hz
                 })
             meta["streams"].append(sdata)
     except Exception as e:
@@ -259,8 +293,10 @@ def extract_timeline_frames(video_path: Path, output_dir: Path, is_duck_asset: b
     if not cap.isOpened():
         return []
         
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    if not fps or fps <= 0 or math.isnan(fps):
+        fps = 24.0
     if total_frames <= 0:
         total_frames = int(fps * 30)
         
@@ -304,12 +340,12 @@ def extract_timeline_frames(video_path: Path, output_dir: Path, is_duck_asset: b
         cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
         ret, frame = cap.read()
         if ret:
-            sec = idx / fps
+            sec = round(idx / fps, 2) if (fps and fps > 0) else 0.0
             fname = f"frame_{sec:05.2f}s_f{idx:04d}.jpg"
             out_file = output_dir / fname
             cv2.imwrite(str(out_file), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
             extracted.append({
-                "timestamp_sec": round(sec, 2),
+                "timestamp_sec": sec,
                 "frame_idx": idx,
                 "file_path": str(out_file),
                 "filename": fname,
@@ -334,7 +370,7 @@ def analyze_audio_track(video_path: Path, temp_wav_dir: Path):
         "overall_rms_dbfs": None,
         "peak_dbfs": None,
         "duration_seconds": None,
-        "summary": "No audio"
+        "summary": "No usable audio stream detected"
     }
     
     try:
@@ -343,63 +379,86 @@ def analyze_audio_track(video_path: Path, temp_wav_dir: Path):
             "-vn", "-acodec", "pcm_s16le", "-ar", "32000", "-ac", "2",
             str(wav_file)
         ]
-        subprocess.run(cmd, capture_output=True, text=True, check=True)
+        res = subprocess.run(cmd, capture_output=True, text=True)
         
         if wav_file.exists() and wav_file.stat().st_size > 44:
             import wave
             with wave.open(str(wav_file), "rb") as w:
-                n_channels = w.getnchannels()
-                rate = w.getframerate()
-                n_frames = w.getnframes()
-                raw = w.readframes(n_frames)
+                n_channels = w.getnchannels() or 1
+                rate = w.getframerate() or 32000
+                n_frames = w.getnframes() or 0
+                raw = w.readframes(n_frames) if n_frames > 0 else b""
                 
-            samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32)
-            if n_channels == 2:
-                samples = samples.reshape(-1, 2).mean(axis=1)
-                
-            rms = np.sqrt(np.mean(samples**2))
-            peak = np.max(np.abs(samples))
-            rms_db = 20 * math.log10(rms / 32768.0) if rms > 0 else -100
-            peak_db = 20 * math.log10(peak / 32768.0) if peak > 0 else -100
-            
-            analysis.update({
-                "has_audio": True,
-                "overall_rms_dbfs": round(rms_db, 2),
-                "peak_dbfs": round(peak_db, 2),
-                "duration_seconds": round(n_frames / rate, 2)
-            })
-            
-            autocorr_scores = []
-            for sec in range(0, int(n_frames / rate), 3):
-                chunk = samples[sec*rate : (sec+1)*rate]
-                chunk = chunk - np.mean(chunk)
-                norm = np.sum(chunk**2)
-                if norm == 0:
-                    continue
-                ac = np.correlate(chunk, chunk, mode='full')
-                ac = ac[len(chunk)-1:] / norm
-                min_lag = int(rate / 1000)
-                max_lag = int(rate / 50)
-                max_corr = np.max(ac[min_lag:max_lag])
-                autocorr_scores.append(max_corr)
-                
-            avg_harmonicity = float(np.mean(autocorr_scores)) if autocorr_scores else 0.0
-            
-            if avg_harmonicity > 0.55:
-                analysis["is_music"] = True
-                analysis["summary"] = "Tonal / Melodic Music Track Present"
+            if n_frames > 0 and len(raw) > 0 and rate > 0:
+                samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32)
+                if n_channels == 2 and len(samples) >= 2:
+                    if len(samples) % 2 != 0:
+                        samples = samples[:-1]
+                    samples = samples.reshape(-1, 2).mean(axis=1)
+                elif n_channels > 2:
+                    samples = samples[::n_channels]
+                    
+                if len(samples) > 0:
+                    sum_sq = float(np.mean(samples**2))
+                    rms = math.sqrt(sum_sq) if sum_sq > 0 else 0.0
+                    peak = float(np.max(np.abs(samples))) if len(samples) > 0 else 0.0
+                    
+                    rms_db = round(20.0 * math.log10(rms / 32768.0), 2) if rms > 0 else -100.0
+                    peak_db = round(20.0 * math.log10(peak / 32768.0), 2) if peak > 0 else -100.0
+                    audio_dur = round(float(n_frames) / float(rate), 2) if rate > 0 else 0.0
+                    
+                    analysis.update({
+                        "has_audio": True,
+                        "overall_rms_dbfs": rms_db,
+                        "peak_dbfs": peak_db,
+                        "duration_seconds": audio_dur
+                    })
+                    
+                    autocorr_scores = []
+                    dur_int = int(n_frames / rate) if rate > 0 else 0
+                    for sec in range(0, dur_int, 3):
+                        start_idx = sec * rate
+                        end_idx = min(len(samples), (sec + 1) * rate)
+                        if start_idx >= len(samples) or end_idx <= start_idx:
+                            continue
+                        chunk = samples[start_idx:end_idx]
+                        if len(chunk) < 100:
+                            continue
+                        chunk = chunk - np.mean(chunk)
+                        norm = float(np.sum(chunk**2))
+                        if norm <= 0 or math.isnan(norm):
+                            continue
+                        ac = np.correlate(chunk, chunk, mode='full')
+                        ac = ac[len(chunk)-1:] / norm
+                        min_lag = max(1, int(rate / 1000))
+                        max_lag = max(min_lag + 1, int(rate / 50))
+                        if len(ac) > max_lag and min_lag < max_lag:
+                            max_corr = float(np.max(ac[min_lag:max_lag]))
+                            autocorr_scores.append(max_corr)
+                            
+                    avg_harmonicity = float(np.mean(autocorr_scores)) if autocorr_scores else 0.0
+                    if avg_harmonicity > 0.55:
+                        analysis["is_music"] = True
+                        analysis["summary"] = "Tonal / Melodic Music Track Present"
+                    elif rms_db > -60.0:
+                        analysis["is_sfx"] = True
+                        analysis["summary"] = "Broadband Environmental SFX / Ambient Sound (No Speech/Voiceover detected)"
+                    else:
+                        analysis["summary"] = "Minimal / Low-Level Ambient Room Tone"
             else:
-                analysis["is_sfx"] = True
-                analysis["summary"] = "Broadband Environmental SFX / Water Spray and Ambient Room Tone (No Speech/Voiceover detected)"
-                
-            try:
-                if wav_file.exists():
-                    wav_file.unlink()
-            except Exception:
-                pass
+                analysis["summary"] = "No usable audio stream detected"
+        else:
+            analysis["summary"] = "No usable audio stream detected"
     except Exception as e:
         analysis["error"] = str(e)
-        
+        analysis["summary"] = "No usable audio stream detected"
+    finally:
+        try:
+            if wav_file.exists():
+                wav_file.unlink()
+        except Exception:
+            pass
+            
     return analysis
 
 def scan_ocr_watermarks(extracted_frames: list):
@@ -419,8 +478,8 @@ def scan_ocr_watermarks(extracted_frames: list):
         h, w = gray.shape
         top = gray[:int(h*0.12), :]
         bot = gray[int(h*0.88):, :]
-        std_top = float(np.std(top))
-        std_bot = float(np.std(bot))
+        std_top = float(np.std(top)) if top.size > 0 else 0.0
+        std_bot = float(np.std(bot)) if bot.size > 0 else 0.0
         results["details"].append({"timestamp": f["timestamp_sec"], "std_top": std_top, "std_bot": std_bot})
         
     return results
@@ -639,6 +698,43 @@ def run_full_analysis(video_path: Path, output_report_path: Path = None, frames_
             narrative_action = "Action escalates across the timeline, driving visual interest and viewer engagement."
             narrative_payoff = "Resolution and culmination of the main sequence delivering a high-retention payoff."
 
+        # Check C2PA box size safely
+        c2pa_box_size = c2pa_meta.get("box_size")
+        if c2pa_meta.get("present") and c2pa_box_size is not None:
+            try:
+                c2pa_box_kb = round(float(c2pa_box_size) / 1024.0, 1)
+            except (ValueError, TypeError):
+                c2pa_box_kb = 0.0
+            c2pa_evidence_str = f"C2PA JUMBF Box ({c2pa_box_kb} KB)"
+            c2pa_rec_str = "Verified synthetic algorithmic media origin"
+        else:
+            c2pa_evidence_str = "Container box inspection (No C2PA manifest found)"
+            c2pa_rec_str = "Standard camera / non-C2PA media"
+
+        # Audio stream table string
+        if a_stream and a_stream.get("codec"):
+            a_codec_str = f"`{a_stream.get('codec')}`"
+            a_layout_str = f"`{a_stream.get('channels', '?')} Ch ({a_stream.get('channel_layout', '?')})`"
+            a_rate_str = f"`{a_stream.get('sample_rate_hz', '?')} Hz`"
+            a_bitrate_str = f"`{a_stream.get('bitrate_kbps') or '?'} kbps`"
+            if audio_ev.get("has_audio"):
+                a_rms_str = f"RMS `{audio_ev.get('overall_rms_dbfs', 'N/A')} dBFS`, Peak `{audio_ev.get('peak_dbfs', 'N/A')} dBFS`"
+            else:
+                a_rms_str = audio_ev.get("summary")
+        else:
+            a_codec_str = "*No audio stream*"
+            a_layout_str = "N/A"
+            a_rate_str = "N/A"
+            a_bitrate_str = "N/A"
+            a_rms_str = audio_ev.get("summary")
+
+        # Video stream table string
+        v_codec_str = f"`{v_stream.get('codec', 'unknown')} ({v_stream.get('profile', 'unknown')})`"
+        v_dim_str = f"`{v_stream.get('width', '?')}x{v_stream.get('height', '?')}` ({v_stream.get('aspect_ratio', '?')})"
+        v_fps_str = f"`{v_stream.get('fps', 24.0)} fps` ({v_stream.get('total_frames', '?')} frames)"
+        v_bitrate_str = f"`{v_stream.get('bitrate_kbps') or '?'} kbps`"
+        v_attr_str = f"`has_b_frames: {v_stream.get('has_b_frames', 'unknown')}`, Progressive"
+
         # Compile Markdown Report
         report_lines = [
             "# VIDEO SEO REVERSE-ENGINEERING REPORT",
@@ -685,8 +781,8 @@ def run_full_analysis(video_path: Path, output_report_path: Path = None, frames_
             "",
             "| Stream | Codec & Profile | Dimensions / Layout | Sample / Frame Rate | Bitrate | Key Attributes |",
             "| :--- | :--- | :--- | :--- | :--- | :--- |",
-            f"| **Video** | `{v_stream.get('codec')} ({v_stream.get('profile')})` | `{v_stream.get('width')}x{v_stream.get('height')}` (9:16) | `{v_stream.get('fps')} fps` ({v_stream.get('total_frames')} frames) | `{v_stream.get('bitrate_kbps')} kbps` | `has_b_frames: {v_stream.get('has_b_frames')}`, Progressive |",
-            f"| **Audio** | `{a_stream.get('codec')}` | `{a_stream.get('channels')} Ch ({a_stream.get('channel_layout')})` | `{a_stream.get('sample_rate_hz')} Hz` | `{a_stream.get('bitrate_kbps')} kbps` | RMS `{audio_ev.get('overall_rms_dbfs')} dBFS`, Peak `{audio_ev.get('peak_dbfs')} dBFS` |",
+            f"| **Video** | {v_codec_str} | {v_dim_str} | {v_fps_str} | {v_bitrate_str} | {v_attr_str} |",
+            f"| **Audio** | {a_codec_str} | {a_layout_str} | {a_rate_str} | {a_bitrate_str} | {a_rms_str} |",
             "",
             "---",
             "",
@@ -769,12 +865,12 @@ def run_full_analysis(video_path: Path, output_report_path: Path = None, frames_
             "",
             "| Audit Domain | Source Evidence | Original Metadata | Reconstructed SEO | Confidence | Unknowns |",
             "| :--- | :--- | :--- | :--- | :--- | :--- |",
-            f"| **Format & Tech** | FFprobe JSON & ISOBMFF box tree | QuickTime MP4, `Lavf58.76.100` | {v_stream.get('width')}x{v_stream.get('height')} 9:16 vertical short-form | **100% (Fact)** | Exact GPU node cluster hardware |",
+            f"| **Format & Tech** | FFprobe JSON & ISOBMFF box tree | QuickTime MP4, `Lavf58.76.100` | {v_stream.get('width', '?')}x{v_stream.get('height', '?')} 9:16 vertical short-form | **100% (Fact)** | Exact GPU node cluster hardware |",
             f"| **Title & Naming** | Project sidecars / Caption.md | {disp_title} | 10 multi-angle titles + 3 retention hooks | **100% (Fact)** | Target platform upload schedule |",
             f"| **Visual Subjects** | Extracted video frames | *Not stated in metadata* | {'Pekin duck, black puppy, sprinkler' if is_duck_asset else reconstructed_seo['primary_keyword']} | **100% (Fact)** | Target subject origin details |",
-            f"| **Visual Narrative** | 12 timeline frames | Sidecar descriptions | Narrative arc from hook to climax payoff | **100% (Fact)** | Intentional staging vs organic capture |",
+            f"| **Visual Narrative** | {len(frames)} timeline frames | Sidecar descriptions if available | Narrative arc from hook to climax payoff | **100% (Fact)** | Intentional staging vs organic capture |",
             f"| **Audio Track** | PCM WAV waveform & FFT spectrum | *No audio tag metadata* | {audio_ev.get('summary')} | **100% (Fact)** | Sound design Foley library ID |",
-            f"| **Cryptographic Provenance** | C2PA JUMBF Box ({round(c2pa_meta.get('box_size', 0)/1024, 1)} KB) | {c2pa_meta.get('model_name') or 'Not reported'} | Verified synthetic algorithmic media origin | **100% (Fact)** | Original text prompt string |",
+            f"| **Cryptographic Provenance** | {c2pa_evidence_str} | {c2pa_meta.get('model_name') or 'Not reported'} | {c2pa_rec_str} | **100% (Fact)** | Original text prompt string / camera model |",
             f"| **Branding & Watermarks** | Edge & variance banner scan | *None in video* | Clean raw footage ready for native upload | **100% (Fact)** | Original publisher handle |",
             "",
             "---",
@@ -815,12 +911,12 @@ def run_full_analysis(video_path: Path, output_report_path: Path = None, frames_
             "ocr_scan": ocr_ev,
             "reconstructed_seo": reconstructed_seo,
             "evidence_table": [
-                {"domain": "Format & Tech", "evidence": "FFprobe JSON & ISOBMFF box tree", "original": "QuickTime MP4, Lavf58.76.100", "reconstructed": f"{v_stream.get('width')}x{v_stream.get('height')} 9:16 vertical short-form", "confidence": "100% (Fact)", "unknowns": "Exact GPU node cluster hardware"},
+                {"domain": "Format & Tech", "evidence": "FFprobe JSON & ISOBMFF box tree", "original": str(tech_meta.get('format_name', 'MP4')), "reconstructed": f"{v_stream.get('width', '?')}x{v_stream.get('height', '?')} short-form", "confidence": "100% (Fact)", "unknowns": "Exact GPU node cluster hardware"},
                 {"domain": "Title & Naming", "evidence": "Caption.md line 1" if is_duck_asset else "Sidecar / File inspection", "original": original_title or "[NOT PRESENT IN SOURCE]", "reconstructed": "10 multi-angle titles + 3 retention hooks", "confidence": "100% (Fact)", "unknowns": "Target platform upload schedule"},
                 {"domain": "Visual Subjects", "evidence": "Extracted video frames", "original": "[NOT PRESENT IN SOURCE]", "reconstructed": "Pekin duck, black puppy, sprinkler" if is_duck_asset else reconstructed_seo["primary_keyword"], "confidence": "100% (Fact)", "unknowns": "Exact subject background details"},
                 {"domain": "Visual Narrative", "evidence": f"{len(frames)} timeline frames", "original": "Sidecar descriptions" if original_caption_a else "[NOT PRESENT IN SOURCE]", "reconstructed": "Hook -> Action Progression -> Climax Payoff", "confidence": "100% (Fact)", "unknowns": "Intentional staging vs organic capture"},
                 {"domain": "Audio Track", "evidence": "PCM WAV waveform & FFT spectrum", "original": "[NOT PRESENT IN SOURCE]", "reconstructed": audio_ev.get("summary"), "confidence": "100% (Fact)", "unknowns": "Sound design Foley library ID"},
-                {"domain": "Cryptographic Provenance", "evidence": f"C2PA JUMBF Box ({round(c2pa_meta.get('box_size', 0)/1024, 1)} KB)" if c2pa_meta.get("present") else "Container box inspection", "original": c2pa_meta.get("model_name") or "[NOT PRESENT IN SOURCE]", "reconstructed": "Verified synthetic algorithmic media origin" if c2pa_meta.get("present") else "Standard camera/non-C2PA media", "confidence": "100% (Fact)", "unknowns": "Original prompt string / camera model"},
+                {"domain": "Cryptographic Provenance", "evidence": c2pa_evidence_str, "original": c2pa_meta.get("model_name") or "[NOT PRESENT IN SOURCE]", "reconstructed": c2pa_rec_str, "confidence": "100% (Fact)", "unknowns": "Original prompt string / camera model"},
                 {"domain": "Branding & Watermarks", "evidence": "Edge & variance banner scan", "original": "[NOT PRESENT IN SOURCE]", "reconstructed": "Clean raw footage ready for native upload", "confidence": "100% (Fact)", "unknowns": "Original publisher handle"}
             ],
             "report_markdown": markdown_content,
