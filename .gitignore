@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.wav
+*.jpg
+*.png
+*_frames/
+*_temp_audio/
+downloads/
+.DS_Store
+Thumbs.db

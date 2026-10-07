@@ -1,0 +1,116 @@
+name: Video SEO Reverse Engineering
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_path:
+        description: "Local path to target video inside repo (e.g., sample/video.mp4)"
+        required: false
+        default: "sample/test-reel.mp4"
+      video_url:
+        description: "Direct download URL for remote video (optional)"
+        required: false
+        default: ""
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'scripts/**'
+      - 'requirements.txt'
+      - '.github/workflows/video-seo.yml'
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  analyze-video:
+    runs-on: ubuntu-latest
+    name: Run Video Reverse Engineering
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install System Dependencies (FFmpeg & FFprobe)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prepare Video Target
+        id: prep_video
+        run: |
+          TARGET_VIDEO="${{ github.event.inputs.video_path }}"
+          VIDEO_URL="${{ github.event.inputs.video_url }}"
+          
+          if [ -n "$VIDEO_URL" ]; then
+            mkdir -p downloads
+            echo "Downloading video from $VIDEO_URL..."
+            curl -L -o downloads/input_video.mp4 "$VIDEO_URL"
+            TARGET_VIDEO="downloads/input_video.mp4"
+          fi
+          
+          if [ -z "$TARGET_VIDEO" ]; then
+            TARGET_VIDEO="sample/test-reel.mp4"
+          fi
+          
+          # If target video does not exist yet (e.g. on generic push), generate test synthetic sample
+          if [ ! -f "$TARGET_VIDEO" ]; then
+            echo "Target video not found on disk. Creating lightweight test pattern MP4..."
+            mkdir -p sample
+            TARGET_VIDEO="sample/test-reel.mp4"
+            ffmpeg -y -f lavfi -i testsrc=size=720x1280:rate=24 -f lavfi -i sine=frequency=440:sample_rate=32000 -t 5 -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 128k "$TARGET_VIDEO"
+            
+            # Create a sample Caption.md to test sidecar metadata discovery
+            cat << 'EOF' > sample/Caption.md
+# Sample Test Reel
+
+## Caption (Option A - Main)
+Sample test caption for automated CI runner testing 😂💦
+
+## Hashtags
+#test #ci #reverseengineering #video
+
+## Pinned Comment
+Automated CI run verified!
+EOF
+          fi
+          
+          echo "selected_video=$TARGET_VIDEO" >> $GITHUB_OUTPUT
+
+      - name: Run Reverse Engineering Engine
+        run: |
+          python scripts/video_seo_reverse_engineer.py \
+            --video "${{ steps.prep_video.outputs.selected_video }}" \
+            --output "VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md"
+
+      - name: Verify Report Generated
+        run: |
+          if [ ! -f "VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md" ]; then
+            echo "Error: VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md was not generated!"
+            exit 1
+          fi
+          echo "Generated report preview:"
+          head -n 40 VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md
+
+      - name: Upload Investigation Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-seo-reverse-engineering-report
+          path: VIDEO-SEO-REVERSE-ENGINEERING-REPORT.md
+          if-no-files-found: error
+
+      - name: Upload Extracted Keyframes (If Available)
+        uses: actions/upload-artifact@v4
+        with:
+          name: extracted-keyframes
+          path: sample/*_frames/*.jpg
+          if-no-files-found: warn
