@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PLB Story Forge — Video to 50 Story Recursive Engine</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="theme-dark">
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <span class="brand-icon">⚡</span>
+        <div class="brand-text">
+          <h1>PLB STORY FORGE</h1>
+          <span class="brand-badge">VIDEO → 50 STORY → RECURSIVE ENGINE</span>
+        </div>
+      </div>
+      <div class="header-meta">
+        <span class="system-status"><span class="status-dot"></span> Ready (Port 5050)</span>
+        <span class="session-badge" id="current-session-label">No Active Session</span>
+      </div>
+    </div>
+    
+    <!-- Main Navigation Bar -->
+    <nav class="main-nav">
+      <div class="nav-container">
+        <button class="nav-tab active" data-tab="tab-video">🎥 VIDEO</button>
+        <button class="nav-tab" data-tab="tab-dna" id="nav-btn-dna">🧬 STORY DNA</button>
+        <button class="nav-tab" data-tab="tab-stories" id="nav-btn-stories">📚 50 STORIES <span class="badge" id="stories-count-badge">0</span></button>
+        <button class="nav-tab" data-tab="tab-tree" id="nav-btn-tree">🌳 STORY TREE</button>
+        <button class="nav-tab" data-tab="tab-compare" id="nav-btn-compare">⚖️ COMPARE</button>
+        <button class="nav-tab" data-tab="tab-export" id="nav-btn-export">📦 EXPORT</button>
+        <button class="nav-tab" data-tab="tab-settings">⚙️ SETTINGS</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <!-- TAB 1: VIDEO INPUT & FORENSIC SCAN -->
+    <section class="tab-pane active" id="tab-video">
+      <div class="grid-layout-2col">
+        <div class="card upload-card">
+          <div class="card-header">
+            <h2>Select Video Asset</h2>
+            <span class="pill-info">MP4, MOV, WEBM</span>
+          </div>
+          <div class="card-body">
+            <div class="drop-zone" id="drop-zone">
+              <div class="drop-icon">🎬</div>
+              <p class="drop-title">Drag & drop your video file here</p>
+              <p class="drop-sub">or click to browse local filesystem</p>
+              <input type="file" id="file-input" accept="video/mp4,video/quicktime,video/webm" style="display:none;">
+            </div>
+
+            <div class="manual-path-box">
+              <label for="video-path-input">Or enter exact local video path:</label>
+              <div class="input-with-button">
+                <input type="text" id="video-path-input" placeholder="C:/Users/Admin/Downloads/.../video.mp4">
+                <button class="btn btn-secondary" id="btn-scan-path">Inspect</button>
+              </div>
+            </div>
+
+            <!-- Discovered Local Candidates -->
+            <div class="candidates-group">
+              <label>Quick Select Test Assets:</label>
+              <div class="candidate-buttons" id="candidate-buttons">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Video Inspection Result -->
+            <div class="inspection-results" id="inspection-box" style="display:none;">
+              <h3>Asset Overview</h3>
+              <div class="stat-grid">
+                <div class="stat-item"><span class="lbl">File</span><span class="val" id="insp-name">-</span></div>
+                <div class="stat-item"><span class="lbl">Duration</span><span class="val" id="insp-duration">-</span></div>
+                <div class="stat-item"><span class="lbl">Resolution</span><span class="val" id="insp-resolution">-</span></div>
+                <div class="stat-item"><span class="lbl">Codec</span><span class="val" id="insp-codec">-</span></div>
+                <div class="stat-item"><span class="lbl">FPS</span><span class="val" id="insp-fps">-</span></div>
+                <div class="stat-item"><span class="lbl">Size</span><span class="val" id="insp-size">-</span></div>
+              </div>
+            </div>
+
+            <!-- Generation Settings Bar -->
+            <div class="controls-bar">
+              <div class="control-field">
+                <label for="select-mode">Story Mode:</label>
+                <select id="select-mode">
+                  <option value="AUTO" selected>AUTO (Intelligent Mix)</option>
+                  <option value="FUNNY">FUNNY (Slapstick / Humor)</option>
+                  <option value="EMOTIONAL">EMOTIONAL (Heartwarming)</option>
+                  <option value="VIRAL">VIRAL (High Hook / Retention)</option>
+                  <option value="DRAMATIC">DRAMATIC (High Stakes / Tension)</option>
+                  <option value="UNEXPECTED">UNEXPECTED (Twists / Surreal)</option>
+                  <option value="ANIMAL_COMEDY">ANIMAL COMEDY (Pet Shenanigans)</option>
+                  <option value="DOCUMENTARY">DOCUMENTARY (Solemn Satire)</option>
+                  <option value="WHOLESOME">WHOLESOME (Gentle & Sweet)</option>
+                  <option value="CHAOTIC">CHAOTIC (Absolute Pandemonium)</option>
+                </select>
+              </div>
+
+              <div class="control-field">
+                <label for="range-threshold">Diversity Threshold: <span id="threshold-val">0.70</span></label>
+                <input type="range" id="range-threshold" min="0.50" max="0.95" step="0.05" value="0.70">
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-large" id="btn-forge-stories" disabled>
+              ⚡ FORGE 50 STORIES
+            </button>
+
+            <!-- Progress Bar -->
+            <div class="progress-box" id="progress-box" style="display:none;">
+              <div class="progress-header">
+                <span class="progress-stage" id="progress-stage">Initializing analysis...</span>
+                <span class="progress-pct" id="progress-pct">0%</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progress-bar-fill" style="width:0%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Sessions History -->
+        <div class="card history-card">
+          <div class="card-header">
+            <h2>Recent Story Bibles</h2>
+            <span class="pill-info">SQLite Local</span>
+          </div>
+          <div class="card-body">
+            <div class="recent-list" id="recent-sessions-list">
+              <p class="placeholder-text">Loading recent history...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: STORY DNA -->
+    <section class="tab-pane" id="tab-dna">
+      <div class="card dna-card">
+        <div class="card-header">
+          <h2>🧬 Extracted Story DNA & Forensic Synthesis</h2>
+          <span class="pill-badge" id="dna-asset-name">Root Asset</span>
+        </div>
+        <div class="card-body">
+          <div class="dna-highlight-banner">
+            <div class="dna-item">
+              <span class="dna-lbl">CORE PREMISE</span>
+              <p class="dna-val-large" id="dna-core-premise">Extract a video to generate Story DNA.</p>
+            </div>
+            <div class="dna-item">
+              <span class="dna-lbl">CENTRAL TENSION</span>
+              <p class="dna-val" id="dna-central-tension">-</p>
+            </div>
+            <div class="dna-item">
+              <span class="dna-lbl">CHARACTER DYNAMIC</span>
+              <p class="dna-val" id="dna-char-dynamic">-</p>
+            </div>
+            <div class="dna-item">
+              <span class="dna-lbl">COMEDIC / EMOTIONAL ENGINE</span>
+              <p class="dna-val" id="dna-engine">-</p>
+            </div>
+          </div>
+
+          <div class="dna-grid-3col">
+            <div class="card subcard">
+              <h3>Characters & Setting</h3>
+              <div class="subcard-content" id="dna-chars-setting">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+            <div class="card subcard">
+              <h3>Narrative Progression</h3>
+              <div class="subcard-content" id="dna-progression">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+            <div class="card subcard">
+              <h3>Reusable Elements</h3>
+              <div class="subcard-content" id="dna-reusable">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+
+          <div class="evidence-timeline-section">
+            <h3>Forensic Video Evidence References</h3>
+            <div class="evidence-tags-list" id="dna-evidence-tags">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: 50 STORIES GRID -->
+    <section class="tab-pane" id="tab-stories">
+      <div class="stories-filter-bar">
+        <div class="filter-group">
+          <label>Filter Mode:</label>
+          <select id="filter-story-mode">
+            <option value="ALL">All Modes</option>
+            <option value="AUTO">AUTO</option>
+            <option value="FUNNY">FUNNY</option>
+            <option value="EMOTIONAL">EMOTIONAL</option>
+            <option value="VIRAL">VIRAL</option>
+            <option value="DRAMATIC">DRAMATIC</option>
+            <option value="UNEXPECTED">UNEXPECTED</option>
+            <option value="ANIMAL_COMEDY">ANIMAL COMEDY</option>
+            <option value="DOCUMENTARY">DOCUMENTARY</option>
+            <option value="WHOLESOME">WHOLESOME</option>
+            <option value="CHAOTIC">CHAOTIC</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Search:</label>
+          <input type="text" id="search-story-text" placeholder="Search premise, title, conflict...">
+        </div>
+
+        <div class="filter-group">
+          <label>Sort:</label>
+          <select id="sort-stories">
+            <option value="id_asc">Story ID (Ascending)</option>
+            <option value="div_desc">Diversity Score (High to Low)</option>
+            <option value="gen_asc">Generation (Gen 1 first)</option>
+          </select>
+        </div>
+
+        <div class="filter-stats">
+          Showing <span id="visible-stories-count">0</span> / <span id="total-stories-count">0</span> stories
+        </div>
+      </div>
+
+      <div class="stories-grid" id="stories-grid">
+        <!-- 50 Story Cards Rendered Here -->
+        <p class="placeholder-text">No stories generated yet. Go to VIDEO tab to analyze an asset.</p>
+      </div>
+    </section>
+
+    <!-- TAB 4: STORY TREE (LINEAGE GRAPH) -->
+    <section class="tab-pane" id="tab-tree">
+      <div class="card tree-card">
+        <div class="card-header">
+          <h2>🌳 Story Lineage & Evolution Graph</h2>
+          <span class="pill-info">Interactive Tree (Click node to expand or inspect)</span>
+        </div>
+        <div class="card-body">
+          <div class="tree-controls">
+            <button class="btn btn-secondary btn-sm" id="btn-collapse-all">Collapse All</button>
+            <button class="btn btn-secondary btn-sm" id="btn-expand-all">Expand All</button>
+            <span class="tree-legend">
+              <span class="legend-badge gen1">Gen 1 (50 Roots)</span>
+              <span class="legend-badge gen2">Gen 2 (Expanded)</span>
+              <span class="legend-badge gen3">Gen 3+ (Deep Descendants)</span>
+            </span>
+          </div>
+          <div class="tree-canvas" id="tree-canvas">
+            <!-- Dynamic Tree Nodes Rendered Here -->
+            <p class="placeholder-text">Tree graph will be rendered once an asset is analyzed.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: COMPARE VIEW -->
+    <section class="tab-pane" id="tab-compare">
+      <div class="card compare-card">
+        <div class="card-header">
+          <h2>⚖️ Generational Evolution & Comparison</h2>
+          <span class="pill-badge" id="compare-target-label">Select a Child Story to Compare</span>
+        </div>
+        <div class="card-body" id="compare-body">
+          <p class="placeholder-text">Click "COMPARE" on any child story card to inspect parent vs child evolution.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: EXPORT BUNDLE -->
+    <section class="tab-pane" id="tab-export">
+      <div class="card export-card">
+        <div class="card-header">
+          <h2>📦 Export Story Bible & Lineage Bundle</h2>
+          <span class="pill-info">Production Ready</span>
+        </div>
+        <div class="card-body">
+          <div class="export-grid">
+            <div class="export-tile">
+              <div class="tile-icon">📜</div>
+              <h3>Markdown Story Bible</h3>
+              <p>Formatted GitHub markdown with full Story DNA, 50 root stories, and recursive branches.</p>
+              <button class="btn btn-primary" id="btn-export-md" disabled>Download .MD</button>
+            </div>
+
+            <div class="export-tile">
+              <div class="tile-icon">📊</div>
+              <h3>JSON Database</h3>
+              <p>Raw structured JSON data containing complete generation history and lineage graph.</p>
+              <button class="btn btn-secondary" id="btn-export-json" disabled>Download .JSON</button>
+            </div>
+
+            <div class="export-tile">
+              <div class="tile-icon">📄</div>
+              <h3>Plain Text Summary</h3>
+              <p>Clean plain text summary log of all premises, hooks, twists, and payoffs.</p>
+              <button class="btn btn-secondary" id="btn-export-txt" disabled>Download .TXT</button>
+            </div>
+
+            <div class="export-tile">
+              <div class="tile-icon">🗜️</div>
+              <h3>Complete ZIP Bundle</h3>
+              <p>All formats (MD, JSON, TXT) packaged alongside cached timeline keyframe images.</p>
+              <button class="btn btn-accent" id="btn-export-zip" disabled>Download .ZIP Bundle</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 7: SETTINGS -->
+    <section class="tab-pane" id="tab-settings">
+      <div class="card settings-card">
+        <div class="card-header">
+          <h2>⚙️ Engine Preferences & AI Provider</h2>
+          <span class="pill-info">Local First Architecture</span>
+        </div>
+        <div class="card-body">
+          <div class="settings-form">
+            <div class="form-group">
+              <label>AI Provider Execution Mode:</label>
+              <select id="setting-provider-mode">
+                <option value="local" selected>Local Deterministic Engine (100% Offline / Fast)</option>
+                <option value="configurable">Configurable External LLM API</option>
+              </select>
+              <span class="help-text">Local engine produces 50 rich, distinct stories deterministically without API costs or rate limits.</span>
+            </div>
+
+            <div class="form-group" id="group-api-key" style="display:none;">
+              <label>External API Key (Optional):</label>
+              <input type="password" id="setting-api-key" placeholder="Enter API Key...">
+              <span class="help-text">Used if external LLM mode is enabled. Falls back gracefully to local engine on error.</span>
+            </div>
+
+            <div class="form-group">
+              <label>Default Anti-Duplication Diversity Threshold:</label>
+              <input type="range" id="setting-default-threshold" min="0.50" max="0.95" step="0.05" value="0.70">
+              <span class="val-display" id="setting-threshold-display">0.70</span>
+            </div>
+
+            <button class="btn btn-primary" id="btn-save-settings">Save Preferences</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Story Details Modal -->
+  <div class="modal-overlay" id="story-modal" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-story-title">Story Details</h2>
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-story-body">
+        <!-- Rendered Story Content -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-copy-btn">Copy Story Markdown</button>
+        <button class="btn btn-primary" id="modal-expand-btn">Expand ×50</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

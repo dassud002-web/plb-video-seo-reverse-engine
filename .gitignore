@@ -17,3 +17,6 @@ Thumbs.db
 # Application cache and runtime uploads
 cache_analysis/
 temp_uploads/
+*.db
+story_forge/storage/frames/
+story_forge/tests/generic_unseen.mp4

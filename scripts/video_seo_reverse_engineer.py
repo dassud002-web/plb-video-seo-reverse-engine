@@ -423,7 +423,12 @@ def detect_visual_narrative_profile(video_path: Path, source_ev: dict = None, sa
         avg_citrus = float(np.mean(citruses)) if citruses else 0.0
         avg_pink = float(np.mean(pinks)) if pinks else 0.0
 
-    sidecars = source_ev.get("found_files", []) if source_ev else []
+    if isinstance(source_ev, dict):
+        sidecars = source_ev.get("found_files", [])
+    elif isinstance(source_ev, list):
+        sidecars = source_ev
+    else:
+        sidecars = []
     sidecar_text = ""
     for fpath in sidecars:
         try:
