@@ -41,7 +41,11 @@ def calculate_video_hash(video_path: Path) -> str:
         h.update(chunk)
     return h.hexdigest()[:16]
 
-def extract_video_story_evidence(video_path: Path, output_cache_dir: Optional[Path] = None) -> Dict[str, Any]:
+def extract_video_story_evidence(
+    video_path: Path,
+    output_cache_dir: Optional[Path] = None,
+    original_filename: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Forensically inspects the target video and produces a rich, evidence-grounded
     extraction dictionary covering all 18 story extraction domains.
@@ -93,7 +97,7 @@ def extract_video_story_evidence(video_path: Path, output_cache_dir: Optional[Pa
         timestamp_or_frame="00.00s",
         fact=f"Container: {tech_meta.get('format_name', 'MP4/MOV')}, Duration: {duration}s, Resolution: {width}x{height}, FPS: {fps}",
         confidence="100% (Fact)",
-        source_reference=video_path.name
+        source_reference=original_filename or video_path.name
     ).to_dict())
 
     # Milestone Frames Evidence
@@ -209,8 +213,10 @@ def extract_video_story_evidence(video_path: Path, output_cache_dir: Optional[Pa
         f"Kinetic pattern: {actions_fact.split('->')[0].strip() if '->' in actions_fact else actions_fact}"
     ]
 
+    display_name = original_filename or video_path.name
     extracted_evidence = {
-        "source_video_name": video_path.name,
+        "source_video_name": display_name,
+        "original_video_name": display_name,
         "source_video_path": str(video_path),
         "source_video_hash": calculate_video_hash(video_path),
         "file_size_bytes": video_path.stat().st_size,

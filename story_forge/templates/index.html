@@ -60,6 +60,21 @@
               <input type="file" id="file-input" accept="video/mp4,video/quicktime,video/webm" style="display:none;">
             </div>
 
+            <!-- Upload Pipeline Status -->
+            <div class="upload-status-box" id="upload-status-box" style="display:none;">
+              <div class="upload-status-header">
+                <div class="upload-selected-name" id="upload-selected-name">Selected: -</div>
+                <div class="upload-size" id="upload-size">Size: -</div>
+              </div>
+              <div class="upload-status-indicator">
+                <span class="upload-status-badge" id="upload-status-badge">Uploading...</span>
+                <span class="upload-status-pct" id="upload-status-pct">0%</span>
+              </div>
+              <div class="upload-progress-track" id="upload-progress-track">
+                <div class="upload-progress-fill" id="upload-progress-fill" style="width:0%;"></div>
+              </div>
+            </div>
+
             <div class="manual-path-box">
               <label for="video-path-input">Or enter exact local video path:</label>
               <div class="input-with-button">

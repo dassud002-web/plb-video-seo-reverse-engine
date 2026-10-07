@@ -12,6 +12,7 @@ Runs on port 5050 (or PORT env var) side-by-side with SEO tools.
 
 import os
 import sys
+import re
 import uuid
 import threading
 import time
@@ -64,6 +65,11 @@ app = Flask(
     template_folder=str(Path(__file__).resolve().parent / "templates"),
     static_folder=str(Path(__file__).resolve().parent / "static")
 )
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2 GB max upload
+
+UPLOAD_DIR = current_dir / "temp_uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_EXTENSIONS = {".mp4", ".mov", ".webm"}
 
 # Background task state
 TASKS: Dict[str, Dict[str, Any]] = {}
@@ -71,6 +77,127 @@ TASKS_LOCK = threading.Lock()
 
 # Initialize DB on start
 init_db()
+
+def cleanup_stale_uploads(ttl_hours: float = 24.0, upload_dir: Path = UPLOAD_DIR) -> int:
+    """Cleans up temporary uploads older than ttl_hours, skipping files currently in active tasks."""
+    removed_count = 0
+    now = time.time()
+    cutoff = now - (ttl_hours * 3600.0)
+
+    active_paths = set()
+    with TASKS_LOCK:
+        for t in TASKS.values():
+            if t.get("status") == "running" and t.get("target_path"):
+                try:
+                    active_paths.add(str(Path(t["target_path"]).resolve()).lower())
+                except Exception:
+                    pass
+
+    try:
+        recent = list_recent_sessions(limit=25)
+        for s in recent:
+            p = s.get("source_video_path")
+            if p:
+                try:
+                    active_paths.add(str(Path(p).resolve()).lower())
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    if not upload_dir.exists():
+        return 0
+
+    for item in upload_dir.iterdir():
+        if item.is_file():
+            try:
+                resolved = str(item.resolve()).lower()
+                if resolved in active_paths:
+                    continue
+                if item.stat().st_mtime < cutoff:
+                    item.unlink(missing_ok=True)
+                    removed_count += 1
+            except Exception:
+                pass
+    return removed_count
+
+@app.route("/api/upload", methods=["POST"])
+def upload_video():
+    """
+    Accepts video files via multipart/form-data upload.
+    Validates extension (.mp4, .mov, .webm).
+    Generates safe unique server filename in temp_uploads/.
+    Preserves full original filename (including Unicode) as metadata.
+    """
+    try:
+        cleanup_stale_uploads(ttl_hours=24.0)
+    except Exception:
+        pass
+
+    if "file" not in request.files:
+        return jsonify({"status": "error", "error": "No file field found in request"}), 400
+
+    uploaded_file = request.files["file"]
+    if not uploaded_file or not uploaded_file.filename:
+        return jsonify({"status": "error", "error": "No file selected or empty filename"}), 400
+
+    raw_filename = uploaded_file.filename
+    # Sanitize away any client-side directory components (prevents path traversal in filename)
+    original_name = Path(raw_filename).name.strip()
+    if not original_name:
+        return jsonify({"status": "error", "error": "Invalid filename"}), 400
+
+    ext = Path(original_name).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({
+            "status": "error",
+            "error": f"Unsupported extension '{ext}'. Allowed extensions: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+        }), 400
+
+    # Validate MIME type if provided and not generic binary
+    mime = uploaded_file.content_type or ""
+    if mime and not (mime.startswith("video/") or mime in {"application/octet-stream", "application/x-matroska"}):
+        return jsonify({
+            "status": "error",
+            "error": f"Unsupported MIME type '{mime}'. Must be a video file."
+        }), 400
+
+    upload_id = uuid.uuid4().hex
+    stem = Path(original_name).stem
+    clean_stem = re.sub(r'[^a-zA-Z0-9_\.-]', '_', stem)[:40].strip('_')
+    if not clean_stem:
+        clean_stem = "video"
+    safe_filename = f"{upload_id[:12]}_{clean_stem}{ext}"
+
+    dest_path = (UPLOAD_DIR / safe_filename).resolve()
+    try:
+        dest_path.relative_to(UPLOAD_DIR.resolve())
+    except ValueError:
+        return jsonify({"status": "error", "error": "Path traversal detected"}), 400
+
+    try:
+        uploaded_file.save(str(dest_path))
+        size_bytes = dest_path.stat().st_size
+        size_mb = round(size_bytes / (1024 * 1024), 2)
+
+        return jsonify({
+            "status": "ok",
+            "upload_id": upload_id,
+            "original_name": original_name,
+            "path": str(dest_path).replace("\\", "/"),
+            "size_mb": size_mb,
+            "extension": ext
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"Failed to save uploaded file: {str(e)}"}), 500
+
+@app.route("/api/cleanup", methods=["POST"])
+def cleanup_uploads():
+    """Manual trigger for cleaning up stale uploads."""
+    data = request.get_json() or {}
+    ttl_hours = float(data.get("ttl_hours", 24.0))
+    cleaned = cleanup_stale_uploads(ttl_hours=ttl_hours)
+    return jsonify({"status": "ok", "cleaned_files": cleaned})
 
 @app.route("/")
 def index():
@@ -108,22 +235,36 @@ def get_recent():
 @app.route("/api/scan", methods=["POST"])
 def scan_video():
     """Fast preliminary inspection of selected video."""
-    data = request.get_json() or {}
-    path_str = data.get("path", "").strip()
-    if not path_str:
-        return jsonify({"status": "error", "error": "No file path provided"}), 400
+    original_name = None
+    target = None
 
-    target = Path(path_str)
-    if not target.exists():
-        return jsonify({"status": "error", "error": f"File does not exist: {path_str}"}), 404
+    if "file" in request.files:
+        upload_res = upload_video()
+        if isinstance(upload_res, tuple) and upload_res[1] != 200:
+            return upload_res
+        res_data = upload_res.get_json()
+        target = Path(res_data["path"])
+        original_name = res_data.get("original_name")
+    else:
+        data = request.get_json() or {}
+        path_str = data.get("path", "").strip()
+        original_name = data.get("original_name")
+        if not path_str:
+            return jsonify({"status": "error", "error": "No file path provided"}), 400
+
+        target = Path(path_str)
+        if not target.exists():
+            return jsonify({"status": "error", "error": f"File does not exist: {path_str}"}), 404
 
     try:
         from scripts.video_seo_reverse_engineer import extract_technical_metadata
         meta = extract_technical_metadata(target)
+        display_name = original_name or target.name
         return jsonify({
             "status": "ok",
             "file_info": {
-                "name": target.name,
+                "name": display_name,
+                "server_filename": target.name,
                 "path": str(target).replace("\\", "/"),
                 "size_bytes": target.stat().st_size,
                 "size_mb": round(target.stat().st_size / (1024 * 1024), 2),
@@ -136,7 +277,7 @@ def scan_video():
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
 
-def _run_story_analysis(task_id: str, video_path: Path, settings: Dict[str, Any]):
+def _run_story_analysis(task_id: str, video_path: Path, settings: Dict[str, Any], original_name: Optional[str] = None):
     """Thread worker: analyzes video, creates DNA, character universe, and initial stories."""
     try:
         def update_task(pct: int, stage: str):
@@ -149,7 +290,10 @@ def _run_story_analysis(task_id: str, video_path: Path, settings: Dict[str, Any]
         time.sleep(0.05)
 
         update_task(25, "Extracting video narrative evidence & timeline milestones...")
-        evidence = extract_video_story_evidence(video_path)
+        evidence = extract_video_story_evidence(video_path, original_filename=original_name)
+        if original_name:
+            evidence["source_video_name"] = original_name
+            evidence["original_video_name"] = original_name
 
         update_task(50, "Synthesizing Story DNA & thematic tension...")
         story_dna = build_story_dna(evidence)
@@ -225,7 +369,8 @@ def _run_story_analysis(task_id: str, video_path: Path, settings: Dict[str, Any]
                 "evidence_items_count": len(evidence.get("evidence_items", [])),
                 "character_universe": char_universe,
                 "universe_metrics": metrics,
-                "video_hash": evidence.get("source_video_hash")
+                "video_hash": evidence.get("source_video_hash"),
+                "source_video_name": evidence.get("source_video_name")
             }
     except Exception as e:
         with TASKS_LOCK:
@@ -238,6 +383,7 @@ def analyze_video():
     """Starts asynchronous full analysis and root story generation."""
     data = request.get_json() or {}
     path_str = data.get("path", "").strip()
+    original_name = data.get("original_name")
     if not path_str:
         return jsonify({"status": "error", "error": "No file path provided"}), 400
 
@@ -249,7 +395,8 @@ def analyze_video():
         "mode": data.get("mode", "AUTO"),
         "threshold": float(data.get("threshold", 0.70)),
         "target_count": int(data.get("target_count", 50)),
-        "universe_mode": bool(data.get("universe_mode", False))
+        "universe_mode": bool(data.get("universe_mode", False)),
+        "original_name": original_name
     }
 
     task_id = str(uuid.uuid4())[:8]
@@ -259,6 +406,7 @@ def analyze_video():
             "progress": 5,
             "stage": "Initializing Story Universe Factory...",
             "target_path": str(target),
+            "original_name": original_name or target.name,
             "session_id": None,
             "result": None,
             "error": None
@@ -266,7 +414,7 @@ def analyze_video():
 
     thread = threading.Thread(
         target=_run_story_analysis,
-        args=(task_id, target, settings),
+        args=(task_id, target, settings, original_name),
         daemon=True
     )
     thread.start()

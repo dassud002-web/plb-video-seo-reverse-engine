@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Application State
   const state = {
     selectedPath: null,
+    originalFileName: null,
     currentSessionId: null,
     sessionData: null,
     stories: [],
@@ -33,6 +34,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const panes = document.querySelectorAll('.tab-pane');
   const dropZone = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
+  const uploadStatusBox = document.getElementById('upload-status-box');
+  const uploadSelectedName = document.getElementById('upload-selected-name');
+  const uploadSize = document.getElementById('upload-size');
+  const uploadStatusBadge = document.getElementById('upload-status-badge');
+  const uploadStatusPct = document.getElementById('upload-status-pct');
+  const uploadProgressTrack = document.getElementById('upload-progress-track');
+  const uploadProgressFill = document.getElementById('upload-progress-fill');
   const pathInput = document.getElementById('video-path-input');
   const btnScanPath = document.getElementById('btn-scan-path');
   const candidateBtnsContainer = document.getElementById('candidate-buttons');
@@ -158,8 +166,10 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.className = 'candidate-btn';
           btn.textContent = `${cand.name} (${cand.size_mb} MB)`;
           btn.addEventListener('click', () => {
-            pathInput.value = cand.path;
-            inspectVideoPath(cand.path);
+            pathInput.value = cand.name;
+            state.selectedPath = cand.path;
+            state.originalFileName = cand.name;
+            inspectVideoPath(cand.path, cand.name);
           });
           candidateBtnsContainer.appendChild(btn);
         });
@@ -193,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------------------------------------------------------------
-  // 3. File Selection & Drag & Drop
+  // 3. File Selection & Drag & Drop Upload Pipeline
   // -------------------------------------------------------------
   dropZone.addEventListener('click', () => fileInput.click());
   dropZone.addEventListener('dragover', (e) => {
@@ -204,36 +214,125 @@ document.addEventListener('DOMContentLoaded', () => {
   dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      pathInput.value = file.name;
-      inspectVideoPath(file.name);
+      uploadAndInspectVideo(file);
     }
   });
 
   fileInput.addEventListener('change', () => {
-    if (fileInput.files.length > 0) {
+    if (fileInput.files && fileInput.files.length > 0) {
       const file = fileInput.files[0];
-      pathInput.value = file.name;
-      inspectVideoPath(file.name);
+      uploadAndInspectVideo(file);
     }
   });
 
   btnScanPath.addEventListener('click', () => {
     const p = pathInput.value.trim();
-    if (p) inspectVideoPath(p);
+    if (p) inspectVideoPath(p, p);
   });
 
-  async function inspectVideoPath(targetPath) {
+  async function uploadAndInspectVideo(file) {
+    if (!file) return;
+
+    // Show upload progress status box
+    uploadStatusBox.style.display = 'flex';
+    uploadSelectedName.textContent = `Selected: ${file.name}`;
+    uploadSize.textContent = `Size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+    uploadStatusBadge.textContent = 'Uploading...';
+    uploadStatusBadge.className = 'upload-status-badge status-uploading';
+    uploadStatusPct.textContent = '0%';
+    uploadProgressTrack.style.display = 'block';
+    uploadProgressFill.style.width = '0%';
+    btnForge.disabled = true;
+
+    // Client-side extension validation hint
+    const validExts = ['.mp4', '.mov', '.webm'];
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!validExts.includes(ext)) {
+      uploadStatusBadge.textContent = `Unsupported format (${ext}). Allowed: MP4, MOV, WEBM`;
+      uploadStatusBadge.className = 'upload-status-badge status-error';
+      uploadProgressTrack.style.display = 'none';
+      alert(`Unsupported file extension: ${ext}\nAllowed extensions: MP4, MOV, WEBM`);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const uploadRes = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload');
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            uploadProgressFill.style.width = `${pct}%`;
+            uploadStatusPct.textContent = `${pct}%`;
+            uploadStatusBadge.textContent = `Uploading... ${pct}%`;
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch (err) {
+              reject(new Error('Invalid response from server'));
+            }
+          } else {
+            try {
+              const errJson = JSON.parse(xhr.responseText);
+              reject(new Error(errJson.error || `Server error (${xhr.status})`));
+            } catch (e) {
+              reject(new Error(`Server error (${xhr.status})`));
+            }
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.ontimeout = () => reject(new Error('Upload timed out'));
+        xhr.send(formData);
+      });
+
+      if (uploadRes.status === 'ok') {
+        uploadProgressFill.style.width = '100%';
+        uploadStatusPct.textContent = '100%';
+        uploadStatusBadge.textContent = 'Uploaded ✓ Ready to Analyze';
+        uploadStatusBadge.className = 'upload-status-badge status-uploaded';
+
+        state.selectedPath = uploadRes.path;
+        state.originalFileName = uploadRes.original_name;
+        pathInput.value = uploadRes.original_name;
+
+        // Automatically inspect uploaded server-side temp file
+        await inspectVideoPath(uploadRes.path, uploadRes.original_name);
+      } else {
+        throw new Error(uploadRes.error || 'Upload failed');
+      }
+    } catch (err) {
+      uploadStatusBadge.textContent = `Upload Failed: ${err.message}`;
+      uploadStatusBadge.className = 'upload-status-badge status-error';
+      uploadProgressFill.style.width = '0%';
+      alert(`Upload Failed: ${err.message}`);
+    }
+  }
+
+  async function inspectVideoPath(targetPath, originalName = null) {
     try {
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: targetPath })
+        body: JSON.stringify({
+          path: targetPath,
+          original_name: originalName || state.originalFileName
+        })
       });
       const data = await res.json();
       if (data.status === 'ok') {
         state.selectedPath = data.file_info.path;
+        state.originalFileName = data.file_info.name;
         document.getElementById('insp-name').textContent = data.file_info.name;
         document.getElementById('insp-duration').textContent = `${data.file_info.duration_seconds}s`;
         document.getElementById('insp-resolution').textContent = data.file_info.resolution;
@@ -273,6 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           path: state.selectedPath,
+          original_name: state.originalFileName,
           target_count: targetCount,
           threshold: threshold,
           universe_mode: true
