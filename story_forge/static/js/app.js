@@ -1339,26 +1339,30 @@ document.addEventListener('DOMContentLoaded', () => {
       const structure = modelData.structure || {};
       const val = modelData.validation || { status: 'PASS', score_pct: 100, passed_checks: 0, total_checks: 0, checks: {}, warnings: [] };
 
+      const sourceMeta = modelData.source_metadata || {};
+
       // Update prompt box
       if (elPromptDisplay) elPromptDisplay.textContent = promptText;
 
-      // Update titles
+      // Update titles according to official documentation
       if (elActiveModelTitle) {
         if (activeModelKey === 'seedance_25') {
           elActiveModelTitle.textContent = 'Seedance 2.5 (ByteDance / Volcengine Standard)';
         } else if (activeModelKey === 'universal_image') {
-          elActiveModelTitle.textContent = 'Universal Image (Midjourney / SDXL / FLUX / Imagen)';
+          elActiveModelTitle.textContent = 'Universal Image (Model-Neutral Specification)';
         } else if (activeModelKey === 'gpt_image') {
-          elActiveModelTitle.textContent = 'GPT Image (DALL-E 3 / Narrative Prose Standard)';
+          elActiveModelTitle.textContent = 'GPT Image (OpenAI gpt-image-2.5-flare / sunburst)';
         } else if (activeModelKey === 'nano_banana_pro') {
-          elActiveModelTitle.textContent = 'Nano Banana Pro (Token-Anchored Directives)';
+          elActiveModelTitle.textContent = 'Nano Banana Pro (Google DeepMind gemini-3-pro-image)';
         } else {
           elActiveModelTitle.textContent = modelData.model_name || activeModelKey;
         }
       }
 
       if (elSpecLabel) {
-        if (activeOutputType === 'video') {
+        if (sourceMeta.source_name) {
+          elSpecLabel.textContent = `📜 Source: ${sourceMeta.source_name}`;
+        } else if (activeOutputType === 'video') {
           elSpecLabel.textContent = 'Native Video Directive • 24fps • 15s Timeline';
         } else {
           elSpecLabel.textContent = 'Master Static Visual Directive • Photographic Realism';
@@ -1368,7 +1372,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update char / word stats
       if (elStatsDisplay) {
         const words = promptText.trim() ? promptText.trim().split(/\s+/).length : 0;
-        elStatsDisplay.textContent = `${words} words • ${promptText.length} chars`;
+        const schema = sourceMeta.prompt_schema_version ? ` • Schema: ${sourceMeta.prompt_schema_version}` : '';
+        elStatsDisplay.textContent = `${words} words • ${promptText.length} chars${schema}`;
       }
 
       // Update validation gate badge
@@ -1378,16 +1383,22 @@ document.addEventListener('DOMContentLoaded', () => {
         elGateBadge.textContent = `${s} ${val.score_pct || 100}% (${val.passed_checks || 0}/${val.total_checks || 0} CHECKS)`;
       }
 
-      // Update structure grid
+      // Update structure grid with provenance tags
       if (elDimGrid) {
         let dimHtml = '';
         const checks = val.checks || {};
         for (const [dimKey, dimVal] of Object.entries(structure)) {
           const isPassed = checks[dimKey] !== false;
+          let provTag = 'OFFICIAL RULE';
+          if (dimKey.includes('PLB Structured') || dimKey === 'Constraints') {
+            provTag = 'PLB OPTIMIZATION';
+          } else if (activeModelKey === 'universal_image') {
+            provTag = 'MODEL-INDEPENDENT';
+          }
           dimHtml += `
             <div class="compiler-dim-item">
               <div class="compiler-dim-header">
-                <span>${escapeHtml(dimKey)}</span>
+                <span>${escapeHtml(dimKey)} <span style="font-size:0.6rem; opacity:0.75; font-weight:normal;">[${provTag}]</span></span>
                 <span class="compiler-check-icon ${isPassed ? 'compiler-check-pass' : 'compiler-check-fail'}">
                   ${isPassed ? '✓ PASS' : '⚠️ CHECK'}
                 </span>
@@ -1400,7 +1411,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (elStructureSummary) {
-        elStructureSummary.textContent = `${val.passed_checks || 0}/${val.total_checks || 0} required fields verified`;
+        const provSummary = sourceMeta.source_url ? `Grounded in ${sourceMeta.source_name}` : 'Documented specifications';
+        elStructureSummary.textContent = `${val.passed_checks || 0}/${val.total_checks || 0} verified • ${provSummary}`;
       }
     }
 

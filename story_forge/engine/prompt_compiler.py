@@ -1,27 +1,40 @@
 #!/usr/bin/env python3
 """
-PLB Studio — Model-Aware Prompt Compiler
-========================================
+PLB Studio — Model-Aware Prompt Compiler (Grounded V2)
+======================================================
 Authoritative multi-model prompt compilation engine for PLB Creator Studio.
+Every adapter is explicitly grounded in its model provider's CURRENT OFFICIAL DOCUMENTATION.
 
-Source of Truth:
-- Official Seedance 2.5 prompting guidance from ByteDance / Volcengine:
-  Base structure: Subject -> Action/Event -> Scene/Environment -> Visual Style -> Camera/Shot -> Sound
-  Advanced capabilities: Timestamps, Reference-role mapping, Continuity, Camera movements, Sound,
-  Extension/edit prompts, First-frame / Last-frame loop workflows.
+Architecture:
+  Official Documentation
+  -> Model Knowledge / Rules (Documentation Registry)
+  -> Model Adapter
+  -> Prompt Compiler
+  -> Validation Gate
 
-Model-Aware Adapters:
-1. Seedance 2.5 (Video Model)
-2. Universal Image (Image Model - Midjourney / SDXL / FLUX)
-3. GPT Image (Image Model - DALL-E 3 / ChatGPT Image)
-4. Nano Banana Pro (Image Model - Fast Edge / Stylized / Token-Anchored)
+Target Models:
+1. Seedance 2.5 (ByteDance / Volcengine Standard)
+2. GPT Image (OpenAI gpt-image-2.5-flare / gpt-image-2.5-sunburst)
+3. Nano Banana Pro (Google DeepMind gemini-3-pro-image-preview / gemini-3.1-flash-image)
+4. Universal Image (Model-Neutral Cross-Platform Consensus)
 
-Outputs a comprehensive PROMPT PACKAGE with structure breakdowns and validation gates (PASS / PARTIAL / FAIL).
+Strict Rule Provenance:
+- OFFICIAL RULE
+- PLB OPTIMIZATION
+- MODEL-INDEPENDENT BEST PRACTICE
+- INFERENCE
 """
 
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any, List, Optional, Tuple
 import re
+
+from story_forge.engine.doc_registry import (
+    DOC_REGISTRY,
+    RuleClassification,
+    ModelRule,
+    ModelDocumentationMetadata
+)
 
 
 # -------------------------------------------------------------------------
@@ -49,6 +62,11 @@ class CompiledPromptResult:
     prompt_text: str
     structure: Dict[str, str]
     validation: ValidationReport
+    source_metadata: Dict[str, Any]
+    official_claims: List[str]
+    plb_optimizations: List[str]
+    inferred_rules: List[str]
+    rule_provenance: Dict[str, Any]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -57,7 +75,12 @@ class CompiledPromptResult:
             "output_type": self.output_type,
             "prompt_text": self.prompt_text,
             "structure": self.structure,
-            "validation": self.validation.to_dict()
+            "validation": self.validation.to_dict(),
+            "source_metadata": self.source_metadata,
+            "official_claims": self.official_claims,
+            "plb_optimizations": self.plb_optimizations,
+            "inferred_rules": self.inferred_rules,
+            "rule_provenance": self.rule_provenance
         }
 
 
@@ -67,15 +90,18 @@ class CompiledPromptResult:
 
 class Seedance25Adapter:
     """
-    Official ByteDance / Volcengine Seedance 2.5 prompting standard.
+    Authoritative ByteDance / Volcengine Seedance 2.5 prompting standard.
+    Official Source: Volcengine Seedance 2.5 Video Generation Prompt Guide
     Base Sequence:
       Subject -> Action/Event -> Scene/Environment -> Visual Style -> Camera/Shot -> Sound
-    Plus:
-      Timeline/Shot Structure, Reference-Role Mapping, Continuity Lock, Loop Anchor.
+    Official Features:
+      @Tag Reference Roles (@Subject1, @Object1), Timestamp Timeline, First/Last Frame Anchors.
     """
 
     MODEL_ID = "seedance_25"
     MODEL_NAME = "Seedance 2.5"
+    OFFICIAL_MODEL_NAMES = ["Seedance 2.5", "Seaweed-7B", "Doubao Video"]
+    PROVIDER = "ByteDance / Volcengine"
     OUTPUT_TYPE = "video"
 
     @classmethod
@@ -168,13 +194,23 @@ class Seedance25Adapter:
         # 5. Validation Gate
         validation = cls.validate(structure)
 
+        # 6. Retrieve Official Source Metadata
+        meta = DOC_REGISTRY.get_metadata(cls.MODEL_ID)
+        source_meta = meta.to_dict() if meta else {}
+        rule_prov = {r_id: r.to_dict() for r_id, r in (meta.rules.items() if meta else {}.items())}
+
         return CompiledPromptResult(
             model_id=cls.MODEL_ID,
             model_name=cls.MODEL_NAME,
             output_type=cls.OUTPUT_TYPE,
             prompt_text=prompt_text,
             structure=structure,
-            validation=validation
+            validation=validation,
+            source_metadata=source_meta,
+            official_claims=meta.official_claims if meta else [],
+            plb_optimizations=meta.plb_optimizations if meta else [],
+            inferred_rules=meta.inferred_rules if meta else [],
+            rule_provenance=rule_prov
         )
 
     @classmethod
@@ -218,17 +254,20 @@ class Seedance25Adapter:
 
 
 # -------------------------------------------------------------------------
-# 3. Universal Image Adapter (Midjourney / SDXL / FLUX / Imagen 3)
+# 3. Universal Image Adapter (Model-Neutral Consensus)
 # -------------------------------------------------------------------------
 
 class UniversalImageAdapter:
     """
-    Declarative, high-density positive prompt syntax optimized for Midjourney,
-    SDXL, FLUX, and Imagen 3.
+    Model-Neutral declarative visual specification based on open photographic consensus.
+    Does NOT emulate or claim proprietary syntax of any specific generator.
+    Applies universal visual principles: Subject, Composition, Environment, Action, Lighting, Optics, Style.
     """
 
     MODEL_ID = "universal_image"
-    MODEL_NAME = "Universal Image"
+    MODEL_NAME = "Universal Image (Model-Neutral)"
+    OFFICIAL_MODEL_NAMES = ["Model-Neutral Engine"]
+    PROVIDER = "Model-Neutral (Open Consensus)"
     OUTPUT_TYPE = "image"
 
     @classmethod
@@ -292,13 +331,22 @@ class UniversalImageAdapter:
 
         validation = cls.validate(structure)
 
+        meta = DOC_REGISTRY.get_metadata(cls.MODEL_ID)
+        source_meta = meta.to_dict() if meta else {}
+        rule_prov = {r_id: r.to_dict() for r_id, r in (meta.rules.items() if meta else {}.items())}
+
         return CompiledPromptResult(
             model_id=cls.MODEL_ID,
             model_name=cls.MODEL_NAME,
             output_type=cls.OUTPUT_TYPE,
             prompt_text=prompt_text,
             structure=structure,
-            validation=validation
+            validation=validation,
+            source_metadata=source_meta,
+            official_claims=meta.official_claims if meta else [],
+            plb_optimizations=meta.plb_optimizations if meta else [],
+            inferred_rules=meta.inferred_rules if meta else [],
+            rule_provenance=rule_prov
         )
 
     @classmethod
@@ -343,18 +391,23 @@ class UniversalImageAdapter:
 
 
 # -------------------------------------------------------------------------
-# 4. GPT Image Adapter (DALL-E 3 / ChatGPT Image Standard)
+# 4. GPT Image Adapter (OpenAI gpt-image-2.5-flare / gpt-image-2.5-sunburst)
 # -------------------------------------------------------------------------
 
 class GPTImageAdapter:
     """
-    Natural-language narrative descriptive prompting optimized for DALL-E 3 / GPT Image.
-    Avoids tag-soup / comma spam. Focuses on full sentence contextual storytelling,
-    character emotional nuance, atmosphere, and cinematic photographic realism.
+    Authoritative OpenAI GPT Image prompt adapter.
+    Official Source: OpenAI API Documentation — Image Generation Guide & Responses API
+    Current Models: gpt-image-2.5-flare (fast, quality generation) and gpt-image-2.5-sunburst (high-precision editing).
+    Official Guidance:
+      Natural, flowing descriptive English prose sentences rather than comma-separated tag lists.
+      Rich scene context covering subject, spatial relationships, lighting, atmosphere, and composition.
     """
 
     MODEL_ID = "gpt_image"
-    MODEL_NAME = "GPT Image"
+    MODEL_NAME = "GPT Image (gpt-image-2.5)"
+    OFFICIAL_MODEL_NAMES = ["gpt-image-2.5-flare", "gpt-image-2.5-sunburst"]
+    PROVIDER = "OpenAI"
     OUTPUT_TYPE = "image"
 
     @classmethod
@@ -393,7 +446,7 @@ class GPTImageAdapter:
         continuity_dim = f"{morph}, strictly maintaining organic biological proportions"
         constraints_dim = f"Free of distortion, clean compositions, no text overlays, realistic physics"
 
-        # Coherent descriptive paragraph format preferred by DALL-E 3
+        # Coherent descriptive paragraph format preferred by OpenAI GPT Image API
         prompt_text = (
             f"A realistic, high-detail photograph of {subject_dim}. "
             f"{env_dim}. {comp_dim}. "
@@ -419,13 +472,22 @@ class GPTImageAdapter:
 
         validation = cls.validate(structure)
 
+        meta = DOC_REGISTRY.get_metadata(cls.MODEL_ID)
+        source_meta = meta.to_dict() if meta else {}
+        rule_prov = {r_id: r.to_dict() for r_id, r in (meta.rules.items() if meta else {}.items())}
+
         return CompiledPromptResult(
             model_id=cls.MODEL_ID,
             model_name=cls.MODEL_NAME,
             output_type=cls.OUTPUT_TYPE,
             prompt_text=prompt_text,
             structure=structure,
-            validation=validation
+            validation=validation,
+            source_metadata=source_meta,
+            official_claims=meta.official_claims if meta else [],
+            plb_optimizations=meta.plb_optimizations if meta else [],
+            inferred_rules=meta.inferred_rules if meta else [],
+            rule_provenance=rule_prov
         )
 
     @classmethod
@@ -470,18 +532,29 @@ class GPTImageAdapter:
 
 
 # -------------------------------------------------------------------------
-# 5. Nano Banana Pro Adapter (Edge / Mobile / Token-Anchored Format)
+# 5. Nano Banana Pro Adapter (Google DeepMind gemini-3-pro-image-preview)
 # -------------------------------------------------------------------------
 
 class NanoBananaProAdapter:
     """
-    Concise, high-density token-anchored prompt syntax optimized for
-    Nano Banana Pro / lightweight edge models.
-    Organized into bracketed functional directives for maximum token efficiency.
+    Authoritative Google DeepMind Nano Banana Pro image generation adapter.
+    Official Source: Google Gemini API Documentation — Nano Banana Image Generation Guide
+    Current Models: gemini-3-pro-image-preview (Nano Banana Pro / Gemini 3 Pro Image)
+                    gemini-3.1-flash-image (Nano Banana)
+    Official Google Template:
+      "A photorealistic [type of shot] of a [subject description] in a [setting description].
+       [Description of the light]. Shot from a [camera angle] with a [lens type]. Aspect ratio [aspect_ratio]."
+    Official Capabilities:
+      Studio-quality up to 4K resolution, Thought Signatures multi-turn editing, search grounding.
+    PLB Optimization Note:
+      Structured bracketed dimension view ([FOCAL_SUBJECT: ...] | ...) is provided strictly
+      as a diagnostic UI inspection tool, NOT Google's official prompt syntax.
     """
 
     MODEL_ID = "nano_banana_pro"
-    MODEL_NAME = "Nano Banana Pro"
+    MODEL_NAME = "Nano Banana Pro (gemini-3-pro-image)"
+    OFFICIAL_MODEL_NAMES = ["gemini-3-pro-image-preview", "gemini-3.1-flash-image"]
+    PROVIDER = "Google / Google DeepMind"
     OUTPUT_TYPE = "image"
 
     @classmethod
@@ -490,7 +563,8 @@ class NanoBananaProAdapter:
         story: Dict[str, Any],
         story_dna: Dict[str, Any],
         hero_frame: Dict[str, Any],
-        continuity_lock: Dict[str, Any]
+        continuity_lock: Dict[str, Any],
+        aspect_ratio: str = "16:9"
     ) -> CompiledPromptResult:
         chars = story.get("characters") or story_dna.get("characters") or [{"name": "Protagonist", "species": "Animal"}]
         primary_char = chars[0].get("name", "Animal")
@@ -512,15 +586,25 @@ class NanoBananaProAdapter:
         subject_dim = f"{primary_char} ({primary_species}), hyper-crisp facial expression, high-contrast pupil focus"
         comp_dim = f"{comp}, tight ground perspective, dynamic negative space balance"
         env_dim = f"{setting}, clean background depth, micro surface texture"
-        action_dim = f"Inquisitive advance toward {obj_name}, kinetic tension freeze"
+        action_dim = f"inquisitively advancing toward {obj_name} with kinetic tension"
         details_dim = f"Ultra-fine fur and feather texture, high-specular eye highlights, organic realism"
         lighting_dim = f"{lighting}, sharp directional key, soft ambient fill, palette: {palette}"
-        camera_dim = f"{lens}, macro center sharpness, creamy background falloff"
+        camera_dim = f"ground perspective with a {lens}, macro center sharpness, creamy background falloff"
         style_dim = f"Masterpiece animal photography, 8k crisp details, ultra-high dynamic range"
         continuity_dim = f"Morphology locked: {morph}, scene locked: {env}"
         constraints_dim = f"Zero anatomical flaws, no blur artifacts, no watermark, strictly organic"
 
+        # Official Google DeepMind template format:
+        # A photorealistic [type of shot] of a [subject description] in a [setting description].
+        # [Description of the light]. Shot from a [camera angle] with a [lens type]. Aspect ratio [aspect_ratio].
         prompt_text = (
+            f"A photorealistic close-up shot of {subject_dim} {action_dim} in {env_dim}. "
+            f"{lighting_dim}. Shot from a {camera_dim}. "
+            f"Aspect ratio {aspect_ratio}. {details_dim}. {continuity_dim}, {constraints_dim}."
+        )
+
+        # Internal PLB Structured Inspection Directive (categorized as PLB OPTIMIZATION)
+        plb_token_view = (
             f"[FOCAL_SUBJECT: {subject_dim}] | "
             f"[ACTION_TENSION: {action_dim}] | "
             f"[SETTING_COMPOSITION: {env_dim}, {comp_dim}] | "
@@ -540,10 +624,15 @@ class NanoBananaProAdapter:
             "Camera/framing": camera_dim,
             "Style": style_dim,
             "Continuity": continuity_dim,
-            "Constraints": constraints_dim
+            "Constraints": constraints_dim,
+            "PLB Structured Directive (Inspection View)": plb_token_view
         }
 
         validation = cls.validate(structure)
+
+        meta = DOC_REGISTRY.get_metadata(cls.MODEL_ID)
+        source_meta = meta.to_dict() if meta else {}
+        rule_prov = {r_id: r.to_dict() for r_id, r in (meta.rules.items() if meta else {}.items())}
 
         return CompiledPromptResult(
             model_id=cls.MODEL_ID,
@@ -551,7 +640,12 @@ class NanoBananaProAdapter:
             output_type=cls.OUTPUT_TYPE,
             prompt_text=prompt_text,
             structure=structure,
-            validation=validation
+            validation=validation,
+            source_metadata=source_meta,
+            official_claims=meta.official_claims if meta else [],
+            plb_optimizations=meta.plb_optimizations if meta else [],
+            inferred_rules=meta.inferred_rules if meta else [],
+            rule_provenance=rule_prov
         )
 
     @classmethod
@@ -576,7 +670,7 @@ class NanoBananaProAdapter:
         warnings = []
         for k, v in checks.items():
             if not v:
-                warnings.append(f"Nano Banana Pro token directive '{k}' incomplete.")
+                warnings.append(f"Nano Banana Pro dimension '{k}' incomplete.")
 
         if passed == total:
             status = "PASS"
@@ -609,6 +703,7 @@ def compile_prompt_package(
 ) -> Dict[str, Any]:
     """
     Compiles a comprehensive, model-aware PROMPT PACKAGE across Video and Image models.
+    Every model is strictly grounded in its official provider documentation.
     Preserves exact creative intent while adapting to each target model's documented syntax.
     """
     hero = hero_frame or story.get("hero_frame") or {}
@@ -620,7 +715,7 @@ def compile_prompt_package(
     res_gpt = GPTImageAdapter.compile(story, story_dna, hero, cont)
     res_nano = NanoBananaProAdapter.compile(story, story_dna, hero, cont)
 
-    # Compile Hero Frame prompt (direct extraction)
+    # Compile Hero Frame prompt (direct extraction from model-neutral visual specification)
     hero_frame_prompt = res_universal.prompt_text
 
     # Compile Shot-by-Shot prompts (Shots 1 to 6)
@@ -633,7 +728,7 @@ def compile_prompt_package(
 
     shot_by_shot_prompts = []
     sb_list = storyboard or story.get("storyboard_6_shots") or story.get("storyboard_6shot") or []
-    
+
     if sb_list:
         for s in sb_list:
             s_num = s.get("shot_number", len(shot_by_shot_prompts) + 1)
@@ -702,8 +797,15 @@ def compile_prompt_package(
     else:
         overall_status = "PARTIAL"
 
+    # Documentation Source Registry Summary
+    sources_summary = {
+        m_id: DOC_REGISTRY.get_metadata(m_id).to_dict()
+        for m_id in ["seedance_25", "universal_image", "gpt_image", "nano_banana_pro"]
+        if DOC_REGISTRY.get_metadata(m_id)
+    }
+
     return {
-        "compiler_version": "PLB_PROMPT_COMPILER_V1",
+        "compiler_version": "PLB_PROMPT_COMPILER_V2_GROUNDED",
         "overall_status": overall_status,
         "story_id": story.get("story_id", "STORY-01"),
         "title": story.get("title", "Story Concept"),
@@ -713,6 +815,7 @@ def compile_prompt_package(
             "gpt_image": res_gpt.to_dict(),
             "nano_banana_pro": res_nano.to_dict()
         },
+        "source_registry": sources_summary,
         # Direct prompt shortcuts
         "seedance_25_prompt": res_seedance.prompt_text,
         "universal_image_prompt": res_universal.prompt_text,

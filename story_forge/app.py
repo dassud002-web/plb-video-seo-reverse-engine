@@ -818,6 +818,38 @@ def post_compile_prompt():
 
     return jsonify({"status": "ok", "prompt_package": p_pack})
 
+@app.route("/api/prompt-compiler/sources", methods=["GET"])
+def get_prompt_compiler_sources():
+    """Lists all official model documentation sources and rule provenance registries."""
+    from story_forge.engine.doc_registry import DOC_REGISTRY
+    return jsonify({
+        "status": "ok",
+        "sources": DOC_REGISTRY.list_all_sources()
+    })
+
+@app.route("/api/prompt-compiler/sources/<model_id>", methods=["GET"])
+def get_prompt_compiler_source_by_model(model_id: str):
+    """Retrieves official documentation metadata and rule traces for a specific model."""
+    from story_forge.engine.doc_registry import DOC_REGISTRY
+    meta = DOC_REGISTRY.get_metadata(model_id)
+    if not meta:
+        return jsonify({"status": "error", "error": f"Model '{model_id}' not found in registry"}), 404
+    return jsonify({
+        "status": "ok",
+        "model_id": model_id,
+        "metadata": meta.to_dict()
+    })
+
+@app.route("/api/prompt-compiler/rule/<rule_id>", methods=["GET"])
+def get_prompt_compiler_rule_trace(rule_id: str):
+    """Identifies which official document supports a specific rule."""
+    from story_forge.engine.doc_registry import DOC_REGISTRY
+    trace = DOC_REGISTRY.trace_rule(rule_id)
+    return jsonify({
+        "status": "ok" if trace.get("found") else "not_found",
+        "rule": trace
+    })
+
 @app.route("/api/session/<session_id>", methods=["GET"])
 def get_session_data(session_id: str):
     """Retrieves full session data, Story DNA, all stories, and lineage tree."""
