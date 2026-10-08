@@ -21,6 +21,7 @@
       </div>
       <div class="header-meta">
         <a href="http://127.0.0.1:5000" target="_self" class="switch-tool-link" style="font-size:0.75rem;font-weight:600;color:#60a5fa;text-decoration:none;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);padding:0.25rem 0.6rem;border-radius:6px;" onclick="if(window.parent&&window.parent!==window){window.parent.postMessage({action:'switch-tab',target:'seo'},'*');return false;}">🚀 Switch to Video SEO Engine</a>
+        <button id="btn-open-diagnostics" class="btn-diagnostics" style="font-size:0.75rem;font-weight:600;color:#10b981;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);padding:0.25rem 0.6rem;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" title="View system activity report & run self-tests">🩺 Diagnostics</button>
         <span class="system-status"><span class="status-dot"></span> Ready (Port 5050)</span>
         <span class="session-badge" id="current-session-label">No Active Universe</span>
       </div>
@@ -616,6 +617,57 @@
         <button class="btn btn-secondary" id="modal-copy-btn">Copy Story Markdown</button>
         <button class="btn btn-accent" id="modal-produce-btn">🎬 Produce Package</button>
         <button class="btn btn-primary" id="modal-expand-btn">Expand ×50</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diagnostics & Live Activity Report Modal -->
+  <div class="modal-overlay" id="diagnostics-modal" style="display:none;z-index:9999;">
+    <div class="modal-card" style="max-width:860px;width:90%;">
+      <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="display:flex;align-items:center;gap:8px;font-size:1.15rem;">🩺 Live Diagnostics & Self-Test Audit</h2>
+        <button class="modal-close" id="diag-modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height:75vh;overflow-y:auto;padding:16px;">
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+          <button id="btn-diag-self-test" class="btn btn-primary" style="font-size:0.8rem;padding:6px 12px;">▶ Run Self-Test</button>
+          <button id="btn-diag-test-copy" class="btn btn-secondary" style="font-size:0.8rem;padding:6px 12px;">📋 Test Copy Mechanism</button>
+          <a href="/api/diagnostics/report?format=html" target="_blank" class="btn btn-secondary" style="font-size:0.8rem;padding:6px 12px;text-decoration:none;display:inline-flex;align-items:center;">📄 Export HTML Report</a>
+          <a href="/api/diagnostics/report?format=json" target="_blank" class="btn btn-secondary" style="font-size:0.8rem;padding:6px 12px;text-decoration:none;display:inline-flex;align-items:center;">💾 Export JSON Report</a>
+          <button id="btn-diag-refresh" class="btn btn-ghost" style="font-size:0.8rem;padding:6px 12px;">🔄 Refresh</button>
+        </div>
+
+        <!-- 1. Session Information -->
+        <div class="card" style="margin-bottom:14px;padding:12px 14px;background:var(--bg-surface);border:1px solid rgba(255,255,255,0.08);border-radius:8px;">
+          <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--text-main);">1. Active Session</h3>
+          <div id="diag-session-info" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;font-size:0.8rem;color:var(--text-muted);">
+            Loading session metadata...
+          </div>
+        </div>
+
+        <!-- 2. Component Health Grid -->
+        <div class="card" style="margin-bottom:14px;padding:12px 14px;background:var(--bg-surface);border:1px solid rgba(255,255,255,0.08);border-radius:8px;">
+          <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--text-main);">2. Component Health Status</h3>
+          <div id="diag-components-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:0.8rem;">
+            Loading component statuses...
+          </div>
+        </div>
+
+        <!-- 3. Detected Issues & Warnings -->
+        <div class="card" style="margin-bottom:14px;padding:12px 14px;background:var(--bg-surface);border:1px solid rgba(255,255,255,0.08);border-radius:8px;">
+          <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--text-main);">3. Detected Issues & Warnings</h3>
+          <div id="diag-issues-list" style="font-size:0.8rem;">
+            No issues detected.
+          </div>
+        </div>
+
+        <!-- 4. User Activity Log -->
+        <div class="card" style="padding:12px 14px;background:var(--bg-surface);border:1px solid rgba(255,255,255,0.08);border-radius:8px;">
+          <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--text-main);">4. Activity Log (Timeline)</h3>
+          <div id="diag-events-log" style="max-height:200px;overflow-y:auto;font-family:monospace;font-size:0.75rem;padding-right:4px;">
+            Loading activity events...
+          </div>
+        </div>
       </div>
     </div>
   </div>

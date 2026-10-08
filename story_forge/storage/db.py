@@ -95,6 +95,28 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_stories_gen ON stories(session_id, generation);
         CREATE INDEX IF NOT EXISTS idx_stories_quality ON stories(session_id, quality_score);
         CREATE INDEX IF NOT EXISTS idx_stories_world ON stories(session_id, world_id);
+
+        CREATE TABLE IF NOT EXISTS diagnostic_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT,
+            timestamp TEXT,
+            event_type TEXT,
+            module TEXT,
+            item_id TEXT,
+            success INTEGER,
+            message TEXT,
+            details_json TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS diagnostic_component_status (
+            component_name TEXT PRIMARY KEY,
+            status TEXT,
+            last_updated TEXT,
+            details_json TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_diag_session ON diagnostic_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_diag_type ON diagnostic_events(event_type);
         """)
 
 def save_session(
@@ -306,3 +328,98 @@ def get_lineage_graph(session_id: str) -> Dict[str, Any]:
             nodes_by_id[pid]["children_count"] += 1
 
     return root_node
+
+
+def save_diagnostic_event(
+    event_type: str,
+    module: str = "core",
+    session_id: Optional[str] = None,
+    item_id: Optional[str] = None,
+    success: bool = True,
+    message: str = "",
+    details: Optional[Dict[str, Any]] = None
+) -> int:
+    """Persists a single diagnostic event to SQLite."""
+    with get_connection() as conn:
+        cursor = conn.execute("""
+            INSERT INTO diagnostic_events (
+                session_id, timestamp, event_type, module, item_id, success, message, details_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            session_id,
+            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+            event_type,
+            module,
+            item_id,
+            1 if success else 0,
+            message,
+            json.dumps(details or {})
+        ))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_diagnostic_events(limit: int = 100, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Returns the most recent diagnostic events, optionally filtered by session."""
+    with get_connection() as conn:
+        if session_id:
+            cursor = conn.execute("""
+                SELECT * FROM diagnostic_events
+                WHERE session_id = ?
+                ORDER BY id DESC LIMIT ?
+            """, (session_id, limit))
+        else:
+            cursor = conn.execute("""
+                SELECT * FROM diagnostic_events
+                ORDER BY id DESC LIMIT ?
+            """, (limit,))
+        rows = [dict(r) for r in cursor.fetchall()]
+        for r in rows:
+            try:
+                r["details"] = json.loads(r.get("details_json") or "{}")
+            except Exception:
+                r["details"] = {}
+        return rows
+
+
+def update_diagnostic_component_status(
+    component_name: str,
+    status: str,
+    details: Optional[Dict[str, Any]] = None
+):
+    """Sets or updates a component's diagnostic health (PASS, PARTIAL, FAIL, NOT TESTED)."""
+    with get_connection() as conn:
+        conn.execute("""
+            INSERT INTO diagnostic_component_status (component_name, status, last_updated, details_json)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(component_name) DO UPDATE SET
+                status = excluded.status,
+                last_updated = excluded.last_updated,
+                details_json = excluded.details_json
+        """, (
+            component_name,
+            status,
+            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+            json.dumps(details or {})
+        ))
+        conn.commit()
+
+
+def get_diagnostic_component_statuses() -> Dict[str, Dict[str, Any]]:
+    """Returns mapping of all tracked component health statuses."""
+    with get_connection() as conn:
+        cursor = conn.execute("SELECT * FROM diagnostic_component_status")
+        rows = [dict(r) for r in cursor.fetchall()]
+        result = {}
+        for r in rows:
+            name = r["component_name"]
+            try:
+                details = json.loads(r.get("details_json") or "{}")
+            except Exception:
+                details = {}
+            result[name] = {
+                "status": r["status"],
+                "last_updated": r["last_updated"],
+                "details": details
+            }
+        return result

@@ -29,6 +29,72 @@ document.addEventListener('DOMContentLoaded', () => {
     currentProducedStoryId: null
   };
 
+  // -------------------------------------------------------------
+  // Truthful Clipboard Helper with Dual Fallback
+  // -------------------------------------------------------------
+  async function copyToClipboard(text) {
+    if (!text || typeof text !== 'string') {
+      return false;
+    }
+
+    // Modern asynchronous clipboard API
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        console.warn('navigator.clipboard.writeText failed, using execCommand fallback:', err);
+      }
+    }
+
+    // Bulletproof synchronous fallback via offscreen textarea
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.width = '2em';
+      textArea.style.height = '2em';
+      textArea.style.padding = '0';
+      textArea.style.border = 'none';
+      textArea.style.outline = 'none';
+      textArea.style.boxShadow = 'none';
+      textArea.style.background = 'transparent';
+      textArea.setAttribute('readonly', '');
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      textArea.setSelectionRange(0, text.length);
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return !!successful;
+    } catch (err) {
+      console.error('execCommand copy fallback failed:', err);
+      return false;
+    }
+  }
+
+  // Diagnostic activity logger helper
+  async function recordDiagnosticEvent(eventType, moduleName = 'ui', details = {}, success = true, message = '') {
+    try {
+      await fetch('/api/diagnostics/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: eventType,
+          module: moduleName,
+          session_id: state.currentSessionId,
+          success: success,
+          message: message,
+          details: details
+        })
+      });
+    } catch (err) {
+      // Diagnostic logging is non-blocking
+    }
+  }
+
   // DOM Elements - Navigation & Core
   const tabs = document.querySelectorAll('.nav-tab');
   const panes = document.querySelectorAll('.tab-pane');
@@ -1029,18 +1095,18 @@ document.addEventListener('DOMContentLoaded', () => {
           <!-- 3. Hero Frame Specification -->
           <div class="prod-section-card">
             <h3>🖼️ 3. Hero Frame Specification</h3>
-            <p style="font-size:0.82rem; margin-bottom:0.4rem;"><strong>Composition:</strong> ${escapeHtml(hero.composition || '-')}</p>
-            <p style="font-size:0.82rem; margin-bottom:0.4rem;"><strong>Lighting:</strong> ${escapeHtml(hero.lighting || '-')}</p>
-            <p style="font-size:0.82rem; margin-bottom:0.4rem;"><strong>Palette:</strong> ${escapeHtml(hero.color_palette || '-')}</p>
-            <p style="font-size:0.82rem;"><strong>Lens:</strong> ${escapeHtml(hero.camera_lens || '-')}</p>
+            <p style="font-size:0.82rem; margin-bottom:0.4rem;"><strong>Composition:</strong> ${escapeHtml(hero.composition || 'Not specified')}</p>
+            <p style="font-size:0.82rem; margin-bottom:0.4rem;"><strong>Lighting:</strong> ${escapeHtml(hero.lighting || hero.focal_lighting || 'Not specified')}</p>
+            <p style="font-size:0.82rem; margin-bottom:0.4rem;"><strong>Palette:</strong> ${escapeHtml(hero.color_palette || (Array.isArray(hero.color_palette_lock) ? hero.color_palette_lock.join(', ') : hero.color_palette_lock) || 'Not specified')}</p>
+            <p style="font-size:0.82rem;"><strong>Lens:</strong> ${escapeHtml(hero.camera_lens || hero.depth_of_field || 'Not specified')}</p>
           </div>
 
           <!-- 4. Continuity Lock Rules -->
           <div class="prod-section-card">
             <h3>🔒 4. Continuity Lock Rules</h3>
-            <p style="font-size:0.82rem; margin-bottom:0.3rem;"><strong>Morphology:</strong> ${escapeHtml(cont.character_morphology || '-')}</p>
-            <p style="font-size:0.82rem; margin-bottom:0.3rem;"><strong>Environment:</strong> ${escapeHtml(cont.environment_lock || '-')}</p>
-            <p style="font-size:0.82rem;"><strong>Immutable Traits:</strong> ${(cont.immutable_traits || []).join(', ')}</p>
+            <p style="font-size:0.82rem; margin-bottom:0.3rem;"><strong>Morphology:</strong> ${escapeHtml(cont.character_morphology || (Array.isArray(cont.character_morphology_rules) ? cont.character_morphology_rules.join(' ') : cont.character_morphology_rules) || 'Not specified')}</p>
+            <p style="font-size:0.82rem; margin-bottom:0.3rem;"><strong>Environment:</strong> ${escapeHtml(cont.environment_lock || (Array.isArray(cont.environment_rules) ? cont.environment_rules.join(' ') : cont.environment_rules) || 'Not specified')}</p>
+            <p style="font-size:0.82rem;"><strong>Immutable Traits:</strong> ${escapeHtml((Array.isArray(cont.immutable_traits) && cont.immutable_traits.length) ? cont.immutable_traits.join(', ') : ((Array.isArray(cont.interaction_invariants) && cont.interaction_invariants.length) ? cont.interaction_invariants.join(', ') : 'Not specified'))}</p>
           </div>
         </div>
 
@@ -1097,27 +1163,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     prodContent.innerHTML = html;
 
-    // Attach copy buttons
+    // Attach copy buttons with truthful verification and fallback
     prodContent.querySelectorAll('.copy-mini-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const text = btn.getAttribute('data-copy');
-        navigator.clipboard.writeText(text);
-        btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = 'Copy', 1500);
+      btn.addEventListener('click', async () => {
+        const text = btn.getAttribute('data-copy') || (btn.parentElement ? btn.parentElement.innerText.replace(/^Copy(\s*)/i, '').trim() : '');
+        recordDiagnosticEvent('COPY_ATTEMPTED', 'production_pipeline', {
+          story_id: state.currentProducedStoryId,
+          char_count: text ? text.length : 0
+        });
+
+        const success = await copyToClipboard(text);
+        if (success) {
+          btn.textContent = 'Copied!';
+          btn.style.color = 'var(--accent-emerald)';
+          recordDiagnosticEvent('COPY_SUCCESS', 'production_pipeline', {
+            story_id: state.currentProducedStoryId,
+            copied_chars: text.length
+          }, true, 'Video prompt copied to clipboard');
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.style.color = '';
+          }, 2000);
+        } else {
+          btn.textContent = 'Copy failed — try again';
+          btn.style.color = 'var(--accent-rose)';
+          recordDiagnosticEvent('COPY_FAILED', 'production_pipeline', {
+            story_id: state.currentProducedStoryId,
+            error: 'Clipboard access denied or fallback failed'
+          }, false, 'Copy prompt operation failed');
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.style.color = '';
+          }, 3000);
+        }
       });
     });
   }
 
   // Copy Full Production Pack Markdown
-  btnCopyProductionPack.addEventListener('click', () => {
+  btnCopyProductionPack.addEventListener('click', async () => {
     const sid = state.currentProducedStoryId;
     if (!sid) {
       alert('Please select and produce a story first.');
       return;
     }
     const text = prodContent.innerText;
-    navigator.clipboard.writeText(text);
-    alert('Full Production Package copied to clipboard!');
+    recordDiagnosticEvent('COPY_ATTEMPTED', 'production_pipeline', { item: 'full_package', story_id: sid });
+    const success = await copyToClipboard(text);
+    if (success) {
+      recordDiagnosticEvent('COPY_SUCCESS', 'production_pipeline', { item: 'full_package', story_id: sid }, true, 'Full package copied');
+      btnCopyProductionPack.textContent = 'Copied Package!';
+      setTimeout(() => btnCopyProductionPack.textContent = 'Copy Production Pack (Markdown)', 2000);
+    } else {
+      recordDiagnosticEvent('COPY_FAILED', 'production_pipeline', { item: 'full_package', story_id: sid }, false, 'Full package copy failed');
+      btnCopyProductionPack.textContent = 'Copy failed — try again';
+      setTimeout(() => btnCopyProductionPack.textContent = 'Copy Production Pack (Markdown)', 3000);
+    }
   });
 
   // -------------------------------------------------------------
@@ -1302,7 +1403,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === modal) modal.style.display = 'none';
   });
 
-  modalCopy.addEventListener('click', () => {
+  modalCopy.addEventListener('click', async () => {
     if (!currentModalStory) return;
     const text = `# [${currentModalStory.story_id}] ${currentModalStory.title}
 Premise: ${currentModalStory.one_line_premise}
@@ -1312,8 +1413,16 @@ Hook: ${currentModalStory.hook}
 Conflict: ${currentModalStory.conflict}
 Twist: ${currentModalStory.twist}
 Payoff: ${currentModalStory.payoff}`;
-    navigator.clipboard.writeText(text);
-    alert('Story Markdown copied to clipboard!');
+    const success = await copyToClipboard(text);
+    if (success) {
+      recordDiagnosticEvent('COPY_SUCCESS', 'story_modal', { story_id: currentModalStory.story_id }, true, 'Copied story markdown');
+      modalCopy.textContent = 'Copied!';
+      setTimeout(() => { modalCopy.textContent = 'Copy Story Markdown'; }, 2000);
+    } else {
+      recordDiagnosticEvent('COPY_FAILED', 'story_modal', { story_id: currentModalStory.story_id }, false, 'Clipboard access denied');
+      modalCopy.textContent = 'Copy failed — try again';
+      setTimeout(() => { modalCopy.textContent = 'Copy Story Markdown'; }, 2500);
+    }
   });
 
   modalProduce.addEventListener('click', () => {
@@ -1374,6 +1483,165 @@ Payoff: ${currentModalStory.payoff}`;
   btnSaveSettings.addEventListener('click', () => {
     alert('Story Universe Factory engine preferences saved successfully!');
   });
+
+  // -------------------------------------------------------------
+  // 18. Live Diagnostics & Self-Test Modal
+  // -------------------------------------------------------------
+  const btnOpenDiag = document.getElementById('btn-open-diagnostics');
+  const diagModal = document.getElementById('diagnostics-modal');
+  const diagModalClose = document.getElementById('diag-modal-close-btn');
+  const btnDiagSelfTest = document.getElementById('btn-diag-self-test');
+  const btnDiagTestCopy = document.getElementById('btn-diag-test-copy');
+  const btnDiagRefresh = document.getElementById('btn-diag-refresh');
+  const diagSessionInfo = document.getElementById('diag-session-info');
+  const diagComponentsGrid = document.getElementById('diag-components-grid');
+  const diagIssuesList = document.getElementById('diag-issues-list');
+  const diagEventsLog = document.getElementById('diag-events-log');
+
+  if (btnOpenDiag && diagModal) {
+    btnOpenDiag.addEventListener('click', () => {
+      diagModal.style.display = 'flex';
+      loadDiagnostics();
+    });
+
+    if (diagModalClose) {
+      diagModalClose.addEventListener('click', () => {
+        diagModal.style.display = 'none';
+      });
+    }
+
+    diagModal.addEventListener('click', (e) => {
+      if (e.target === diagModal) diagModal.style.display = 'none';
+    });
+
+    if (btnDiagRefresh) {
+      btnDiagRefresh.addEventListener('click', () => {
+        loadDiagnostics();
+      });
+    }
+
+    if (btnDiagSelfTest) {
+      btnDiagSelfTest.addEventListener('click', async () => {
+        btnDiagSelfTest.disabled = true;
+        btnDiagSelfTest.textContent = '⏳ Running Self-Test...';
+        try {
+          const res = await fetch('/api/diagnostics/self-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: state.currentSessionId || null })
+          });
+          const data = await res.json();
+          await loadDiagnostics();
+          const r = data.results || {};
+          const pass = r.overall_status === 'PASS';
+          alert(`Self-Test Completed: ${r.overall_status || 'DONE'}\nElapsed: ${r.elapsed_ms || 0}ms\n\n${pass ? 'All subsystem gates verified.' : 'Issues detected — review Diagnostics report.'}`);
+        } catch (err) {
+          alert(`Self-Test failed to execute: ${err.message}`);
+        } finally {
+          btnDiagSelfTest.disabled = false;
+          btnDiagSelfTest.textContent = '▶ Run Self-Test';
+        }
+      });
+    }
+
+    if (btnDiagTestCopy) {
+      btnDiagTestCopy.addEventListener('click', async () => {
+        const testPayload = `PLB Studio Clipboard Self-Test [Timestamp: ${new Date().toISOString()}]`;
+        const success = await copyToClipboard(testPayload);
+        if (success) {
+          recordDiagnosticEvent('COPY_TEST', 'diagnostics', { status: 'success' }, true, 'Clipboard verification passed');
+          alert('✔ Clipboard verification SUCCESSFUL!\nReal test string copied to system clipboard.');
+        } else {
+          recordDiagnosticEvent('COPY_TEST', 'diagnostics', { status: 'failed' }, false, 'Clipboard access denied or unverified');
+          alert('✖ Clipboard verification FAILED!\nBrowser or system clipboard permissions denied.');
+        }
+        loadDiagnostics();
+      });
+    }
+  }
+
+  async function loadDiagnostics() {
+    if (!diagSessionInfo) return;
+    try {
+      const url = state.currentSessionId 
+        ? `/api/diagnostics?session_id=${encodeURIComponent(state.currentSessionId)}` 
+        : '/api/diagnostics';
+      const res = await fetch(url);
+      const data = await res.json();
+
+      // 1. Session Info
+      const sess = data.session || {};
+      const errors = data.errors || [];
+      const warnings = data.warnings || [];
+      diagSessionInfo.innerHTML = `
+        <div><strong>Session ID:</strong> <code>${escapeHtml(sess.session_id || 'None')}</code></div>
+        <div><strong>Status:</strong> <span class="badge ${data.app_status === 'ready' ? 'badge-ok' : 'badge-err'}">${escapeHtml(data.app_status || 'ready')}</span></div>
+        <div><strong>Module:</strong> ${escapeHtml(data.current_module || 'None')}</div>
+        <div><strong>Duration:</strong> ${escapeHtml(sess.duration_formatted || '0s')}</div>
+        <div><strong>Errors:</strong> ${errors.length}</div>
+        <div><strong>Warnings:</strong> ${warnings.length}</div>
+      `;
+
+      // 2. Component Health Grid
+      const comps = data.components || {};
+      const compKeys = Object.keys(comps);
+      if (compKeys.length === 0) {
+        diagComponentsGrid.innerHTML = '<p class="placeholder-text">No component status records yet.</p>';
+      } else {
+        diagComponentsGrid.innerHTML = compKeys.map(k => {
+          const st = comps[k];
+          let badgeColor = 'var(--text-muted)';
+          if (st === 'PASS') badgeColor = 'var(--accent-emerald)';
+          else if (st === 'PARTIAL') badgeColor = '#f59e0b';
+          else if (st === 'FAIL') badgeColor = 'var(--accent-rose)';
+
+          return `
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:8px 10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-weight:600;color:var(--text-main);">${escapeHtml(k)}</span>
+                <span style="font-size:0.7rem;font-weight:700;color:${badgeColor};">${escapeHtml(st)}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 3. Issues List
+      const allIssues = [
+        ...errors.map(e => ({ type: 'ERROR', ...e })),
+        ...warnings.map(w => ({ type: 'WARNING', ...w }))
+      ];
+      if (allIssues.length === 0) {
+        diagIssuesList.innerHTML = '<p style="color:var(--accent-emerald);font-size:0.8rem;margin:0;">✔ No warnings or errors detected.</p>';
+      } else {
+        diagIssuesList.innerHTML = allIssues.map(iss => `
+          <div style="padding:6px 8px;margin-bottom:4px;border-radius:4px;background:rgba(239,68,68,0.1);border-left:3px solid ${iss.type === 'ERROR' ? 'var(--accent-rose)' : '#f59e0b'};font-size:0.75rem;">
+            <strong>[${escapeHtml(iss.type)}] ${escapeHtml(iss.module || 'System')}:</strong> ${escapeHtml(iss.message || iss.event_type || '')}
+          </div>
+        `).join('');
+      }
+
+      // 4. Activity Log
+      const events = data.recent_events || [];
+      if (events.length === 0) {
+        diagEventsLog.innerHTML = '<p class="placeholder-text">No activity recorded yet.</p>';
+      } else {
+        diagEventsLog.innerHTML = events.slice(0, 30).map(e => {
+          const color = e.success ? 'var(--accent-emerald)' : 'var(--accent-rose)';
+          const icon = e.success ? '✔' : '✖';
+          return `
+            <div style="margin-bottom:4px;line-height:1.4;border-bottom:1px solid rgba(255,255,255,0.04);padding-bottom:2px;">
+              <span style="color:var(--text-muted);">${escapeHtml(e.timestamp || '')}</span>
+              <span style="color:${color};font-weight:700;margin:0 4px;">${icon} [${escapeHtml(e.module || '')}]</span>
+              <strong>${escapeHtml(e.event_type || '')}:</strong> ${escapeHtml(e.message || '')}
+            </div>
+          `;
+        }).join('');
+      }
+    } catch (err) {
+      diagSessionInfo.innerHTML = `<p style="color:var(--accent-rose);">Failed to load diagnostics: ${escapeHtml(err.message)}</p>`;
+    }
+  }
 
   function escapeHtml(str) {
     if (!str) return '';

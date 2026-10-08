@@ -125,30 +125,77 @@ def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any]) -> D
     ]
 
     # 3. Hero Frame Specification
+    genome = story.get("genome") or {}
+
+    comp_val = (
+        story.get("composition")
+        or genome.get("composition")
+        or f"Rule-of-thirds low angle: {primary_char} on left third, {obj_name} on right third."
+    )
+    lighting_val = (
+        story.get("lighting")
+        or genome.get("lighting")
+        or "Golden natural sunlight rim-lighting with soft warm fill."
+    )
+    palette_raw = (
+        story.get("color_palette")
+        or story.get("palette")
+        or genome.get("palette")
+        or ["Lush Natural Green", "Warm Terracotta/Wood Tan", "High-Luminance White", "Crisp Accent Hue"]
+    )
+    if isinstance(palette_raw, list):
+        palette_list = palette_raw
+        palette_str = ", ".join(palette_raw)
+    else:
+        palette_str = str(palette_raw)
+        palette_list = [p.strip() for p in palette_str.split(",") if p.strip()]
+
+    lens_val = (
+        story.get("camera_lens")
+        or story.get("lens")
+        or genome.get("camera_lens")
+        or "f/2.8 shallow depth with creamy background bokeh (50mm prime)"
+    )
+
     hero_frame = {
-        "composition": f"Rule-of-thirds low angle: {primary_char} on left third, {obj_name} on right third.",
-        "focal_lighting": "Golden natural sunlight rim-lighting with soft warm fill.",
-        "depth_of_field": "f/2.8 shallow depth with creamy background bokeh.",
-        "focal_expression": f"Wide-eyed astonishment and comically frozen posture.",
-        "color_palette_lock": ["Lush Natural Green", "Warm Terracotta/Wood Tan", "High-Luminance White", "Crisp Accent Hue"]
+        "composition": comp_val or "Not specified",
+        "lighting": lighting_val or "Not specified",
+        "focal_lighting": lighting_val or "Not specified",
+        "color_palette": palette_str or "Not specified",
+        "color_palette_lock": palette_list if palette_list else ["Not specified"],
+        "camera_lens": lens_val or "Not specified",
+        "depth_of_field": lens_val or "Not specified",
+        "focal_expression": f"Wide-eyed astonishment and comically frozen posture."
     }
 
     # 4. Continuity Lock
+    morph_rules = [
+        f"Preserve consistent fur/feather coat texture for {primary_char}.",
+        "Zero artificial anatomical distortion; realistic organic proportions.",
+        "Maintain ear and tail posture rules throughout all frames."
+    ]
+    env_rules = [
+        f"Strict adherence to {setting} architecture.",
+        "Consistent sun position casting shadows to the camera left.",
+        "Weather conditions remain stable across all sequential shots."
+    ]
+    traits_list = [
+        f"Object scale: {obj_name} proportional to {primary_char}",
+        "Zero anatomical distortion",
+        "Physical gravity & momentum invariants"
+    ]
+    invariants = [
+        f"Object scale: {obj_name} must remain physically proportional to {primary_char}.",
+        "Physical contact physics: obey real-world gravity and momentum."
+    ]
+
     continuity_lock = {
-        "character_morphology_rules": [
-            f"Preserve consistent fur/feather coat texture for {primary_char}.",
-            "Zero artificial anatomical distortion; realistic organic proportions.",
-            "Maintain ear and tail posture rules throughout all frames."
-        ],
-        "environment_rules": [
-            f"Strict adherence to {setting} architecture.",
-            "Consistent sun position casting shadows to the camera left.",
-            "Weather conditions remain stable across all sequential shots."
-        ],
-        "interaction_invariants": [
-            f"Object scale: {obj_name} must remain physically proportional to {primary_char}.",
-            "Physical contact physics: obey real-world gravity and momentum."
-        ]
+        "character_morphology": " ".join(morph_rules),
+        "character_morphology_rules": morph_rules,
+        "environment_lock": " ".join(env_rules),
+        "environment_rules": env_rules,
+        "immutable_traits": traits_list,
+        "interaction_invariants": invariants
     }
 
     # 5. Seedance Prompt (Dreamina / Seedance 2.5 optimized)
@@ -236,3 +283,26 @@ def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any]) -> D
         "platform_captions": platform_captions,
         "seo_pack": seo_pack
     }
+
+
+def validate_production_package(pkg: Dict[str, Any]) -> List[str]:
+    """Validates that a production package has all critical fields populated without blanks."""
+    warnings = []
+    hero = pkg.get("hero_frame") or {}
+    for f in ["composition", "lighting", "color_palette", "camera_lens"]:
+        val = hero.get(f)
+        if not val or val == "Not specified":
+            warnings.append(f"Hero Frame field '{f}' is empty or not specified")
+
+    cont = pkg.get("continuity_lock") or {}
+    for f in ["character_morphology", "environment_lock", "immutable_traits"]:
+        val = cont.get(f)
+        if not val or val == "Not specified" or (isinstance(val, list) and not val):
+            warnings.append(f"Continuity field '{f}' is empty or not specified")
+
+    if not pkg.get("seedance_prompt"):
+        warnings.append("Seedance prompt is missing")
+    if not pkg.get("veo_prompt"):
+        warnings.append("Google Veo prompt is missing")
+
+    return warnings

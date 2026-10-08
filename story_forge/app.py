@@ -38,9 +38,17 @@ from story_forge.engine.expansion_engine import expand_story_node_50
 from story_forge.engine.lineage_engine import build_comparison_view_data
 from story_forge.engine.character_universe import extract_canon_characters, build_character_universe
 from story_forge.engine.universe_engine import generate_story_universe
-from story_forge.engine.production_pipeline import produce_story_package
+from story_forge.engine.production_pipeline import produce_story_package, validate_production_package
 from story_forge.engine.quality_engine import rank_story_universe, score_story_quality
 from story_forge.engine.story_worlds import get_all_story_worlds
+from story_forge.diagnostics.activity_logger import (
+    log_event,
+    get_diagnostic_state,
+    run_self_test,
+    test_copy_mechanism,
+    generate_session_report,
+    update_component_health
+)
 from story_forge.storage.db import (
     init_db,
     save_session,
@@ -83,6 +91,11 @@ TASKS_LOCK = threading.Lock()
 
 # Initialize DB on start
 init_db()
+try:
+    log_event("APP_STARTED", module="story_universe_factory", message="PLB Story Universe Factory daemon initialized")
+    log_event("APP_READY", module="story_universe_factory", message="Database connection and storage layers ready")
+except Exception:
+    pass
 
 def cleanup_stale_uploads(ttl_hours: float = 24.0, upload_dir: Path = UPLOAD_DIR) -> int:
     """Cleans up temporary uploads older than ttl_hours, skipping files currently in active tasks."""
@@ -618,6 +631,46 @@ def get_ranked_stories(session_id: str):
         "stories": ranked
     })
 
+def _heal_package_if_needed(package: Dict[str, Any], session_id: str, story_id: str) -> Dict[str, Any]:
+    """Ensures legacy stored packages have all modern Hero Frame and Continuity fields populated."""
+    if not package:
+        return package
+    hero = package.get("hero_frame") or {}
+    cont = package.get("continuity_lock") or {}
+    modified = False
+
+    if not hero.get("lighting") or hero.get("lighting") == "-":
+        hero["lighting"] = hero.get("focal_lighting") or "Golden natural sunlight rim-lighting with soft warm fill."
+        modified = True
+    if not hero.get("color_palette") or hero.get("color_palette") == "-":
+        raw_pal = hero.get("color_palette_lock") or ["Lush Natural Green", "Warm Terracotta/Wood Tan", "High-Luminance White", "Crisp Accent Hue"]
+        hero["color_palette"] = ", ".join(raw_pal) if isinstance(raw_pal, list) else str(raw_pal)
+        modified = True
+    if not hero.get("camera_lens") or hero.get("camera_lens") == "-":
+        hero["camera_lens"] = hero.get("depth_of_field") or "f/2.8 shallow depth with creamy background bokeh (50mm prime)"
+        modified = True
+
+    if not cont.get("character_morphology") or cont.get("character_morphology") == "-":
+        raw_m = cont.get("character_morphology_rules") or ["Preserve consistent fur/feather coat texture.", "Zero artificial anatomical distortion."]
+        cont["character_morphology"] = " ".join(raw_m) if isinstance(raw_m, list) else str(raw_m)
+        modified = True
+    if not cont.get("environment_lock") or cont.get("environment_lock") == "-":
+        raw_e = cont.get("environment_rules") or ["Strict adherence to architecture.", "Consistent sun position casting shadows to camera left."]
+        cont["environment_lock"] = " ".join(raw_e) if isinstance(raw_e, list) else str(raw_e)
+        modified = True
+    if not cont.get("immutable_traits"):
+        cont["immutable_traits"] = cont.get("interaction_invariants") or ["Object scale proportional", "Zero anatomical distortion", "Physical gravity & momentum invariants"]
+        modified = True
+
+    if modified:
+        package["hero_frame"] = hero
+        package["continuity_lock"] = cont
+        try:
+            save_production_package(session_id, story_id, package)
+        except Exception:
+            pass
+    return package
+
 @app.route("/api/produce/<session_id>/<story_id>", methods=["POST", "GET"])
 def produce_story_endpoint(session_id: str, story_id: str):
     """Generates and caches 9-part production package for selected story."""
@@ -632,11 +685,36 @@ def produce_story_endpoint(session_id: str, story_id: str):
     if request.method == "GET":
         cached = get_production_package(session_id, story_id)
         if cached:
-            return jsonify({"status": "ok", "package": cached, "cached": True})
+            healed = _heal_package_if_needed(cached, session_id, story_id)
+            return jsonify({"status": "ok", "package": healed, "cached": True})
 
     # Generate fresh package
     package = produce_story_package(story, story_dna)
     save_production_package(session_id, story_id, package)
+
+    # Diagnostic validation & event logging
+    field_warnings = validate_production_package(package)
+    if field_warnings:
+        for w in field_warnings:
+            log_event(
+                "FIELD_EMPTY",
+                module="production_pipeline",
+                session_id=session_id,
+                item_id=story_id,
+                success=False,
+                message=w,
+                details={"field": w, "story_id": story_id}
+            )
+    else:
+        log_event(
+            "PROMPT_GENERATED",
+            module="production_pipeline",
+            session_id=session_id,
+            item_id=story_id,
+            success=True,
+            message=f"Production package & video prompts generated for story {story_id}",
+            details={"story_id": story_id}
+        )
 
     return jsonify({"status": "ok", "package": package, "cached": False})
 
@@ -645,7 +723,8 @@ def get_production_package_endpoint(session_id: str, story_id: str):
     """Retrieves or auto-generates production package for a story."""
     cached = get_production_package(session_id, story_id)
     if cached:
-        return jsonify({"status": "ok", "package": cached, "cached": True})
+        healed = _heal_package_if_needed(cached, session_id, story_id)
+        return jsonify({"status": "ok", "package": healed, "cached": True})
     
     return produce_story_endpoint(session_id, story_id)
 
@@ -788,6 +867,65 @@ def export_file(format_name: str, session_id: str):
         )
     else:
         return jsonify({"status": "error", "error": f"Unsupported format: {format_name}"}), 400
+
+# -------------------------------------------------------------
+# Diagnostics & Self-Test Endpoints
+# -------------------------------------------------------------
+@app.route("/api/diagnostics", methods=["GET"])
+def get_diagnostics_endpoint():
+    """Returns machine-readable system diagnostic state."""
+    state = get_diagnostic_state()
+    return jsonify(state)
+
+@app.route("/api/diagnostics/event", methods=["POST"])
+def post_diagnostic_event_endpoint():
+    """Records a diagnostic event from frontend (e.g. copy attempted/success/failed)."""
+    data = request.get_json(silent=True) or {}
+    event_type = data.get("event_type", "GENERIC_EVENT")
+    module = data.get("module", "story_universe_factory")
+    session_id = data.get("session_id")
+    item_id = data.get("item_id")
+    success = bool(data.get("success", True))
+    message = data.get("message", "")
+    details = data.get("details", {})
+
+    event_id = log_event(
+        event_type=event_type,
+        module=module,
+        session_id=session_id,
+        item_id=item_id,
+        success=success,
+        message=message,
+        details=details
+    )
+    return jsonify({"status": "ok", "event_id": event_id})
+
+@app.route("/api/diagnostics/self-test", methods=["POST", "GET"])
+def run_self_test_endpoint():
+    """Runs deterministic self-test suite across all subsystems."""
+    results = run_self_test()
+    return jsonify({"status": "ok", "results": results})
+
+@app.route("/api/diagnostics/copy-test", methods=["GET", "POST"])
+def copy_test_endpoint():
+    """Verifies clipboard copy payload mechanism."""
+    text = request.args.get("text")
+    if not text:
+        data = request.get_json(silent=True) or {}
+        text = data.get("text")
+    if not text:
+        text = "Cinematic photorealistic 8k video prompt"
+    res = test_copy_mechanism(text)
+    return jsonify({"status": "ok", "result": res})
+
+@app.route("/api/diagnostics/report", methods=["GET"])
+def get_diagnostic_report_endpoint():
+    """Exports human/machine readable session report."""
+    format_type = request.args.get("format", "html").lower()
+    report = generate_session_report(format_type)
+    if format_type == "json":
+        return Response(report, mimetype="application/json")
+    return Response(report, mimetype="text/html")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))

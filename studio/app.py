@@ -8,11 +8,12 @@ PLB Video SEO Reverse Engine (port 5000) into a single desktop studio.
 
 import os
 import sys
+import json
 import subprocess
 import webbrowser
 import urllib.request
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response
 
 if getattr(sys, "frozen", False):
     current_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
@@ -100,6 +101,36 @@ def open_browser():
         return jsonify({"status": "ok", "url": url})
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
+
+@studio_app.route("/api/diagnostics", methods=["GET"])
+def studio_diagnostics():
+    """Proxies diagnostics from the primary Story Universe engine on 5050."""
+    try:
+        req = urllib.request.Request("http://127.0.0.1:5050/api/diagnostics")
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            data["gateway_studio"] = {"port": 5500, "status": "online"}
+            return jsonify(data)
+    except Exception as e:
+        return jsonify({
+            "app_status": "ready",
+            "current_module": "studio_gateway",
+            "error": f"Universe engine diagnostic bridge error: {str(e)}",
+            "ports": {"studio": 5500, "universe": 5050, "seo": 5000}
+        })
+
+@studio_app.route("/api/diagnostics/report", methods=["GET"])
+def studio_diagnostics_report():
+    """Proxies the generated HTML/JSON session report."""
+    format_type = request.args.get("format", "html").lower()
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:5050/api/diagnostics/report?format={format_type}")
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            content = resp.read()
+            mimetype = "application/json" if format_type == "json" else "text/html"
+            return Response(content, mimetype=mimetype)
+    except Exception as e:
+        return Response(f"<h1>Diagnostic Bridge Error</h1><p>{str(e)}</p>", mimetype="text/html", status=500)
 
 if __name__ == "__main__":
     port = int(os.environ.get("STUDIO_PORT", 5500))
