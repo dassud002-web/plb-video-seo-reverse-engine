@@ -21,7 +21,13 @@ from typing import Dict, Any, List, Optional
 from flask import Flask, request, jsonify, render_template, send_file, Response
 
 # Add project root to path
-current_dir = Path(__file__).resolve().parent.parent
+if getattr(sys, "frozen", False):
+    current_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    app_base_dir = Path(sys.executable).resolve().parent
+else:
+    current_dir = Path(__file__).resolve().parent.parent
+    app_base_dir = current_dir
+
 if str(current_dir) not in sys.path:
     sys.path.insert(0, str(current_dir))
 
@@ -62,12 +68,12 @@ from story_forge.exports.exporter import (
 
 app = Flask(
     __name__,
-    template_folder=str(Path(__file__).resolve().parent / "templates"),
-    static_folder=str(Path(__file__).resolve().parent / "static")
+    template_folder=str(current_dir / "story_forge" / "templates"),
+    static_folder=str(current_dir / "story_forge" / "static")
 )
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2 GB max upload
 
-UPLOAD_DIR = current_dir / "temp_uploads"
+UPLOAD_DIR = app_base_dir / "temp_uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".webm"}
 

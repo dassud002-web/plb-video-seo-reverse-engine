@@ -6,15 +6,23 @@ Persists sessions, Story DNA, Character Universes, Story Genomes,
 Recursive Lineage Graphs, Quality Scores, and Production Packages.
 """
 
+import sys
 import sqlite3
 import json
 import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-DB_PATH = Path(__file__).resolve().parent / "story_forge.db"
+if getattr(sys, "frozen", False):
+    DB_DIR = Path(sys.executable).resolve().parent / "data"
+else:
+    DB_DIR = Path(__file__).resolve().parent
+
+DB_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DB_DIR / "story_forge.db"
 
 def get_connection() -> sqlite3.Connection:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn

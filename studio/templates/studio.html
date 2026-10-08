@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PLB Creator Studio — Desktop Edition</title>
+  <link rel="stylesheet" href="/static/css/studio.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%22><text y=%2226%22 font-size=%2224%22>⚡</text></svg>">
+</head>
+<body>
+  <div class="studio-app-shell">
+    <!-- TOP DESKTOP HEADER BAR -->
+    <header class="studio-header">
+      <div class="header-left">
+        <div class="studio-brand">
+          <span class="brand-icon">⚡</span>
+          <div class="brand-titles">
+            <span class="brand-main">PLB CREATOR STUDIO</span>
+            <span class="brand-sub">DESKTOP EDITION • v2.5</span>
+          </div>
+        </div>
+
+        <!-- TOOL SWITCHER TABS -->
+        <nav class="tool-switcher">
+          <button class="switcher-tab active" id="tab-btn-universe" data-target="universe" title="Press Ctrl+1 to switch">
+            <span class="tab-icon">🌌</span>
+            <span class="tab-label">Story Universe Factory</span>
+            <span class="key-hint">Ctrl+1</span>
+          </button>
+          <button class="switcher-tab" id="tab-btn-seo" data-target="seo" title="Press Ctrl+2 to switch">
+            <span class="tab-icon">🚀</span>
+            <span class="tab-label">Video SEO Reverse Engine</span>
+            <span class="key-hint">Ctrl+2</span>
+          </button>
+        </nav>
+      </div>
+
+      <div class="header-right">
+        <!-- SYSTEM HEALTH INDICATORS -->
+        <div class="health-cluster">
+          <div class="health-item" id="health-universe" title="Story Universe Factory Service (Port 5050)">
+            <span class="health-dot dot-active"></span>
+            <span class="health-name">Universe</span>
+            <span class="health-port">5050</span>
+          </div>
+          <div class="health-item" id="health-seo" title="Video SEO Reverse Engine Service (Port 5000)">
+            <span class="health-dot dot-active"></span>
+            <span class="health-name">SEO</span>
+            <span class="health-port">5000</span>
+          </div>
+        </div>
+
+        <!-- ACTION CONTROLS -->
+        <div class="actions-cluster">
+          <button class="action-btn" id="btn-open-folder" title="Open Local Uploads & Output Folder in Windows Explorer">
+            <span class="btn-icon">📁</span>
+            <span class="btn-text">Outputs</span>
+          </button>
+          <button class="action-btn" id="btn-reload-view" title="Reload active workspace (F5 or Ctrl+R)">
+            <span class="btn-icon">🔄</span>
+            <span class="btn-text">Reload</span>
+          </button>
+          <button class="action-btn" id="btn-open-external" title="Open active tool in external browser tab">
+            <span class="btn-icon">🗗</span>
+            <span class="btn-text">Browser</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- WORKSPACE VIEWPORT -->
+    <main class="studio-viewport">
+      <!-- Story Universe Factory View -->
+      <div class="workspace-pane active" id="pane-universe">
+        <iframe id="frame-universe" src="http://127.0.0.1:5050" class="tool-frame" title="PLB Story Universe Factory"></iframe>
+      </div>
+
+      <!-- Video SEO Reverse Engine View -->
+      <div class="workspace-pane" id="pane-seo">
+        <iframe id="frame-seo" src="http://127.0.0.1:5000" class="tool-frame" title="PLB Video SEO Reverse Engine"></iframe>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/js/studio.js"></script>
+</body>
+</html>

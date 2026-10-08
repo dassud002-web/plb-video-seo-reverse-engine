@@ -18,5 +18,7 @@ Thumbs.db
 cache_analysis/
 temp_uploads/
 *.db
+build/
+dist/
 story_forge/storage/frames/
 story_forge/tests/generic_unseen.mp4

@@ -21,7 +21,13 @@ from pathlib import Path
 from flask import Flask, request, jsonify, render_template, send_file, Response
 
 # Add scripts directory to path to import reverse engineering engine
-current_dir = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    current_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    app_base_dir = Path(sys.executable).resolve().parent
+else:
+    current_dir = Path(__file__).resolve().parent
+    app_base_dir = current_dir
+
 if str(current_dir) not in sys.path:
     sys.path.insert(0, str(current_dir))
 
@@ -31,13 +37,17 @@ from scripts.video_seo_reverse_engineer import (
     locate_source_files
 )
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+app = Flask(
+    __name__,
+    template_folder=str(current_dir / "templates"),
+    static_folder=str(current_dir / "static")
+)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2 GB max upload
 
 # State tracking for asynchronous analysis tasks
 TASKS = {}
-UPLOAD_DIR = current_dir / "temp_uploads"
-CACHE_DIR = current_dir / "cache_analysis"
+UPLOAD_DIR = app_base_dir / "temp_uploads"
+CACHE_DIR = app_base_dir / "cache_analysis"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
