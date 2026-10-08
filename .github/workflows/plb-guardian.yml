@@ -1,0 +1,53 @@
+name: PLB Project Guardian
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-recovery-point:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Guardian
+        run: |
+          test -f tools/plb-guardian/backup.ps1
+          test -f tools/plb-guardian/restore.ps1
+          test -f tools/plb-guardian/install.ps1
+          echo "Guardian recovery layer is present."
+
+      - name: Verify history
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "History: $(git rev-list --count HEAD) commits"
+
+      - name: Create recovery manifest
+        run: |
+          {
+            echo "# PLB Recovery Manifest"
+            echo "- Repository: ${{ github.repository }}"
+            echo "- Commit: ${{ github.sha }}"
+            echo "- Ref: ${{ github.ref_name }}"
+            echo "- Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "- Tracked files: $(git ls-files | wc -l)"
+            echo
+            git log -10 --pretty=format:'- %h %s (%ad)' --date=iso
+          } > PLB-RECOVERY-MANIFEST.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plb-recovery-manifest
+          path: PLB-RECOVERY-MANIFEST.md
+          retention-days: 30
