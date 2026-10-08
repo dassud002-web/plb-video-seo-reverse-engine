@@ -45,6 +45,19 @@ def build():
         print("Cleaning previous distribution directory...")
         shutil.rmtree(dist_dir, ignore_errors=True)
 
+    # 2.5 Ensure essential directory structures exist
+    for dir_path in [
+        project_root / "static",
+        project_root / "templates",
+        project_root / "story_forge" / "templates",
+        project_root / "story_forge" / "static",
+        project_root / "studio" / "templates",
+        project_root / "studio" / "static",
+        project_root / "scripts",
+        project_root / "input",
+    ]:
+        dir_path.mkdir(parents=True, exist_ok=True)
+
     # 3. Execute PyInstaller
     cmd = [
         sys.executable,

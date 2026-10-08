@@ -4,17 +4,21 @@ from pathlib import Path
 block_cipher = None
 project_root = Path(SPECPATH)
 
-added_datas = [
-    (str(project_root / "templates"), "templates"),
-    (str(project_root / "static"), "static"),
-    (str(project_root / "story_forge" / "templates"), "story_forge/templates"),
-    (str(project_root / "story_forge" / "static"), "story_forge/static"),
-    (str(project_root / "studio" / "templates"), "studio/templates"),
-    (str(project_root / "studio" / "static"), "studio/static"),
-    (str(project_root / "scripts"), "scripts"),
-    (str(project_root / "input"), "input"),
-    (str(project_root / "temp_uploads"), "temp_uploads"),
+candidate_datas = [
+    (project_root / "templates", "templates"),
+    (project_root / "static", "static"),
+    (project_root / "story_forge" / "templates", "story_forge/templates"),
+    (project_root / "story_forge" / "static", "story_forge/static"),
+    (project_root / "studio" / "templates", "studio/templates"),
+    (project_root / "studio" / "static", "studio/static"),
+    (project_root / "scripts", "scripts"),
+    (project_root / "input", "input"),
 ]
+
+added_datas = []
+for src, dst in candidate_datas:
+    if src.exists():
+        added_datas.append((str(src), dst))
 
 hidden_imports = [
     "flask",
