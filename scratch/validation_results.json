@@ -1,0 +1,67 @@
+{
+  "PHASE_1": {
+    "Port_http://127.0.0.1:5500": true,
+    "Port_http://127.0.0.1:5050": true,
+    "Port_http://127.0.0.1:5000": true,
+    "Story_Universe": true,
+    "Story_DNA_and_Lineage": true,
+    "Hero_Frame_NonBlank": true,
+    "Continuity_Block": true,
+    "Production_Package": true,
+    "Prompt_Compiler": true
+  },
+  "PHASE_2": {
+    "Seedance_25_Prompt": true,
+    "Universal_Image_Prompt": true,
+    "GPT_Image_Prompt": true,
+    "Nano_Banana_Pro_Prompt": true,
+    "Hero_Frame_Prompt": true,
+    "Shot_by_shot_Prompts": true,
+    "Continuity_Block": true
+  },
+  "PHASE_3": {
+    "Official_Rule_Badges": true,
+    "PLB_Optimization_Badges": true,
+    "Model_Independent_Badges": true,
+    "Seedance_Doc_Link": true,
+    "GPT_Doc_Link": true,
+    "Nano_Doc_Link": true,
+    "No_DALLE_Claims": true,
+    "No_DALLE_In_Frontend": true,
+    "Nano_Bracket_Marked_PLB_Optimization": true
+  },
+  "PHASE_4": {
+    "Clipboard_seedance_25": true,
+    "Log_Event_seedance_25": true,
+    "Clipboard_universal_image": true,
+    "Log_Event_universal_image": true,
+    "Clipboard_gpt_image": true,
+    "Log_Event_gpt_image": true,
+    "Clipboard_nano_banana_pro": true,
+    "Log_Event_nano_banana_pro": true,
+    "Diagnostics_Copy_Test_Endpoint": true,
+    "Copy_Failed_Logged": true
+  },
+  "PHASE_5": {
+    "Seedance_Formula_And_Roles": true,
+    "Seedance_Camera_And_Sound": true,
+    "GPT_Natural_Sentences": true,
+    "GPT_No_Tag_Salad": true,
+    "GPT_Style_Lighting": true,
+    "Nano_Photographic_Details": true,
+    "Nano_No_Unsupported_Syntax": true,
+    "Universal_Zero_Proprietary": true
+  },
+  "PHASE_7": {
+    "Characters": true,
+    "Continuity Rules": true,
+    "Copy Prompt": true,
+    "Export": true,
+    "Genome": true,
+    "Hero Frame": true,
+    "SEO": true,
+    "Service Health": true,
+    "Story DNA": true,
+    "Video Prompt": true
+  }
+}
