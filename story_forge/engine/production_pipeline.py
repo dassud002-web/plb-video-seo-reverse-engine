@@ -16,6 +16,7 @@ Converts any selected story into a 9-part production package:
 
 from dataclasses import dataclass, asdict
 from typing import Dict, Any, List
+from story_forge.engine.prompt_compiler import compile_prompt_package
 
 def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -268,6 +269,19 @@ def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any]) -> D
         "pinned_comment": f"The face right at the end took me out completely 😂 What should we let {primary_char} try next?"
     }
 
+    # 10. Model-Aware Prompt Compiler (Seedance 2.5, Universal Image, GPT Image, Nano Banana Pro)
+    prompt_package = compile_prompt_package(
+        story=story,
+        story_dna=story_dna,
+        hero_frame=hero_frame,
+        continuity_lock=continuity_lock,
+        script=script_15s,
+        storyboard=storyboard_6shot
+    )
+    # Update seedance_prompt to the rich model-aware Seedance 2.5 prompt while preserving veo_prompt
+    if prompt_package.get("seedance_25_prompt"):
+        seedance_prompt = prompt_package["seedance_25_prompt"]
+
     return {
         "story_id": story_id,
         "title": title,
@@ -281,7 +295,17 @@ def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any]) -> D
         "veo_prompt": veo_prompt,
         "audio_plan": audio_plan,
         "platform_captions": platform_captions,
-        "seo_pack": seo_pack
+        "seo_pack": seo_pack,
+        # Model-Aware Prompt Compiler Package:
+        "prompt_package": prompt_package,
+        "compiled_prompts": prompt_package.get("models", {}),
+        "seedance_25_prompt": prompt_package.get("seedance_25_prompt", seedance_prompt),
+        "universal_image_prompt": prompt_package.get("universal_image_prompt", ""),
+        "gpt_image_prompt": prompt_package.get("gpt_image_prompt", ""),
+        "nano_banana_pro_prompt": prompt_package.get("nano_banana_pro_prompt", ""),
+        "hero_frame_prompt": prompt_package.get("hero_frame_prompt", ""),
+        "shot_by_shot_prompts": prompt_package.get("shot_by_shot_prompts", []),
+        "continuity_block": prompt_package.get("continuity_block", "")
     }
 
 

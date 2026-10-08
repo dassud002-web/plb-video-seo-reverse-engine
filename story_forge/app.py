@@ -662,6 +662,33 @@ def _heal_package_if_needed(package: Dict[str, Any], session_id: str, story_id: 
         cont["immutable_traits"] = cont.get("interaction_invariants") or ["Object scale proportional", "Zero anatomical distortion", "Physical gravity & momentum invariants"]
         modified = True
 
+    if not package.get("prompt_package"):
+        try:
+            story = get_story(session_id, story_id) or {"story_id": story_id, "title": package.get("title", "")}
+            sess = get_session(session_id) or {}
+            dna = sess.get("story_dna", {})
+            from story_forge.engine.prompt_compiler import compile_prompt_package
+            p_pack = compile_prompt_package(
+                story=story,
+                story_dna=dna,
+                hero_frame=hero,
+                continuity_lock=cont,
+                script=package.get("script_15s") or package.get("production_script_15s"),
+                storyboard=package.get("storyboard_6_shots") or package.get("storyboard_6shot")
+            )
+            package["prompt_package"] = p_pack
+            package["compiled_prompts"] = p_pack.get("models", {})
+            package["seedance_25_prompt"] = p_pack.get("seedance_25_prompt")
+            package["universal_image_prompt"] = p_pack.get("universal_image_prompt")
+            package["gpt_image_prompt"] = p_pack.get("gpt_image_prompt")
+            package["nano_banana_pro_prompt"] = p_pack.get("nano_banana_pro_prompt")
+            package["hero_frame_prompt"] = p_pack.get("hero_frame_prompt")
+            package["shot_by_shot_prompts"] = p_pack.get("shot_by_shot_prompts", [])
+            package["continuity_block"] = p_pack.get("continuity_block", "")
+            modified = True
+        except Exception:
+            pass
+
     if modified:
         package["hero_frame"] = hero
         package["continuity_lock"] = cont
@@ -727,6 +754,69 @@ def get_production_package_endpoint(session_id: str, story_id: str):
         return jsonify({"status": "ok", "package": healed, "cached": True})
     
     return produce_story_endpoint(session_id, story_id)
+
+@app.route("/api/prompt-compiler/<session_id>/<story_id>", methods=["GET"])
+def get_prompt_compiler_package(session_id: str, story_id: str):
+    """Retrieves or compiles the Model-Aware Prompt Compiler package for a story."""
+    cached = get_production_package(session_id, story_id)
+    if cached:
+        healed = _heal_package_if_needed(cached, session_id, story_id)
+        if healed.get("prompt_package"):
+            return jsonify({"status": "ok", "prompt_package": healed["prompt_package"], "cached": True})
+
+    story = get_story(session_id, story_id)
+    if not story:
+        return jsonify({"status": "error", "error": f"Story {story_id} not found"}), 404
+
+    sess = get_session(session_id) or {}
+    story_dna = sess.get("story_dna", {})
+    from story_forge.engine.prompt_compiler import compile_prompt_package
+    p_pack = compile_prompt_package(story, story_dna)
+
+    log_event(
+        "PROMPT_COMPILED",
+        module="prompt_compiler",
+        session_id=session_id,
+        item_id=story_id,
+        success=True,
+        message=f"Prompt package compiled for {story_id} ({p_pack['overall_status']})",
+        details={"status": p_pack["overall_status"], "models": list(p_pack["models"].keys())}
+    )
+
+    return jsonify({"status": "ok", "prompt_package": p_pack, "cached": False})
+
+@app.route("/api/prompt-compiler/compile", methods=["POST"])
+def post_compile_prompt():
+    """Compiles prompt package from raw story / genome / DNA payload."""
+    data = request.get_json(silent=True) or {}
+    story = data.get("story") or {}
+    story_dna = data.get("story_dna") or {}
+    hero_frame = data.get("hero_frame")
+    continuity_lock = data.get("continuity_lock")
+    script = data.get("script")
+    storyboard = data.get("storyboard")
+
+    from story_forge.engine.prompt_compiler import compile_prompt_package
+    p_pack = compile_prompt_package(
+        story=story,
+        story_dna=story_dna,
+        hero_frame=hero_frame,
+        continuity_lock=continuity_lock,
+        script=script,
+        storyboard=storyboard
+    )
+
+    log_event(
+        "PROMPT_COMPILED",
+        module="prompt_compiler",
+        session_id=data.get("session_id"),
+        item_id=story.get("story_id"),
+        success=True,
+        message=f"Custom prompt package compiled ({p_pack['overall_status']})",
+        details={"status": p_pack["overall_status"]}
+    )
+
+    return jsonify({"status": "ok", "prompt_package": p_pack})
 
 @app.route("/api/session/<session_id>", methods=["GET"])
 def get_session_data(session_id: str):

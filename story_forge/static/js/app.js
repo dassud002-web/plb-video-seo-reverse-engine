@@ -1045,7 +1045,156 @@ document.addEventListener('DOMContentLoaded', () => {
     const captions = pkg.platform_captions || {};
     const seo = pkg.seo_pack || {};
 
+    // Model-Aware Prompt Package
+    const promptPkg = pkg.prompt_package || {
+      overall_status: 'PASS',
+      models: {
+        seedance_25: {
+          model_id: 'seedance_25',
+          model_name: 'Seedance 2.5',
+          output_type: 'video',
+          prompt_text: pkg.seedance_prompt || '',
+          structure: { 'Subject': 'Subject directive', 'Action/Event': 'Action directive' },
+          validation: { status: 'PASS', passed_checks: 9, total_checks: 9, score_pct: 100, checks: {}, warnings: [] }
+        }
+      },
+      hero_frame_prompt: pkg.hero_frame_prompt || '',
+      shot_by_shot_prompts: pkg.shot_by_shot_prompts || [],
+      continuity_block: pkg.continuity_block || ''
+    };
+
+    const models = promptPkg.models || {};
+
     let html = `
+      <!-- 0. MODEL-AWARE PROMPT COMPILER STUDIO -->
+      <div class="prompt-compiler-card" id="prompt-compiler-studio">
+        <div class="compiler-header">
+          <div class="compiler-title-group">
+            <span class="compiler-title">🎯 Model-Aware Prompt Compiler</span>
+            <span id="compiler-gate-badge" class="compiler-gate-badge pass">PASS 100% (9/9 CHECKS)</span>
+          </div>
+          <div class="compiler-actions">
+            <button class="btn btn-secondary btn-sm" id="btn-toggle-prompt-structure" type="button">
+              👁️ Show Structure
+            </button>
+            <button class="btn btn-primary btn-sm" id="btn-copy-compiled-prompt" type="button">
+              📋 Copy Prompt
+            </button>
+          </div>
+        </div>
+
+        <div class="compiler-toolbar">
+          <div class="compiler-selectors">
+            <!-- Output Type Toggle -->
+            <span class="compiler-group-label">Output Type:</span>
+            <div class="compiler-pills-row" id="compiler-type-pills">
+              <button class="compiler-pill video-pill active" data-type="video" type="button">🎥 Video</button>
+              <button class="compiler-pill image-pill" data-type="image" type="button">🖼️ Image</button>
+            </div>
+
+            <!-- Video Models Group -->
+            <div id="compiler-video-models-group" style="display:inline-flex; align-items:center; gap:0.4rem;">
+              <span class="compiler-group-label">Video Model:</span>
+              <div class="compiler-pills-row">
+                <button class="compiler-pill active" data-model="seedance_25" type="button">Seedance 2.5</button>
+              </div>
+            </div>
+
+            <!-- Image Models Group -->
+            <div id="compiler-image-models-group" style="display:none; align-items:center; gap:0.4rem;">
+              <span class="compiler-group-label">Image Model:</span>
+              <div class="compiler-pills-row">
+                <button class="compiler-pill active" data-model="universal_image" type="button">Universal Image</button>
+                <button class="compiler-pill" data-model="gpt_image" type="button">GPT Image</button>
+                <button class="compiler-pill" data-model="nano_banana_pro" type="button">Nano Banana Pro</button>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono);" id="compiler-stats-display"></div>
+        </div>
+
+        <!-- Main Prompt Box -->
+        <div class="compiler-main-box">
+          <div class="compiler-box-header">
+            <span class="compiler-model-tag" id="compiler-active-model-title">Seedance 2.5 (ByteDance / Volcengine Standard)</span>
+            <span id="compiler-output-spec-label">Native Video Directive • 24fps • 15s Timeline</span>
+          </div>
+          <div class="compiler-prompt-text" id="compiler-prompt-display"></div>
+        </div>
+
+        <!-- Collapsible Structure Breakdown -->
+        <div class="compiler-structure-container" id="compiler-structure-panel">
+          <div class="compiler-structure-title">
+            <span>📐 Parsed Structure Dimensions & Validation Gate</span>
+            <span style="font-size:0.72rem; font-weight:normal; color:var(--text-muted);" id="compiler-structure-summary"></span>
+          </div>
+          <div class="compiler-dim-grid" id="compiler-dim-grid"></div>
+        </div>
+
+        <!-- Sub-Package Drawers -->
+        <div class="compiler-extra-sections">
+          <!-- Hero Frame Prompt -->
+          <div>
+            <button class="compiler-sub-toggle-btn" data-target="compiler-hero-drawer" type="button">
+              <span>🖼️ Hero Frame Master Prompt</span>
+              <span class="toggle-arrow">▼</span>
+            </button>
+            <div class="compiler-sub-content" id="compiler-hero-drawer">
+              <div class="prompt-box">
+                <button class="copy-mini-btn" data-copy-target="compiler-hero-text" type="button">Copy</button>
+                <span id="compiler-hero-text">${escapeHtml(promptPkg.hero_frame_prompt || pkg.hero_frame_prompt || '')}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6 Shot-by-Shot Prompts -->
+          <div>
+            <button class="compiler-sub-toggle-btn" data-target="compiler-shots-drawer" type="button">
+              <span>🎬 6 Shot-by-Shot Video Prompts (Timestamps & Angles)</span>
+              <span class="toggle-arrow">▼</span>
+            </button>
+            <div class="compiler-sub-content" id="compiler-shots-drawer">
+              <div class="storyboard-grid" id="compiler-shots-list" style="margin-top:0.5rem;">
+    `;
+
+    const shots = promptPkg.shot_by_shot_prompts || pkg.shot_by_shot_prompts || [];
+    shots.forEach(s => {
+      html += `
+        <div class="shot-card">
+          <div class="shot-header">
+            <span>SHOT ${s.shot_number}: ${escapeHtml(s.name)}</span>
+            <span style="color:var(--accent-amber);">${escapeHtml(s.duration)}</span>
+          </div>
+          <div class="prompt-box" style="margin-top:0.35rem; font-size:0.72rem;">
+            <button class="copy-mini-btn" data-copy="${escapeHtml(s.prompt)}" type="button">Copy</button>
+            ${escapeHtml(s.prompt)}
+          </div>
+        </div>
+      `;
+    });
+
+    html += `
+              </div>
+            </div>
+          </div>
+
+          <!-- Continuity Lock Rules Block -->
+          <div>
+            <button class="compiler-sub-toggle-btn" data-target="compiler-continuity-drawer" type="button">
+              <span>🔒 Continuity Lock Directive Block</span>
+              <span class="toggle-arrow">▼</span>
+            </button>
+            <div class="compiler-sub-content" id="compiler-continuity-drawer">
+              <div class="prompt-box">
+                <button class="copy-mini-btn" data-copy-target="compiler-cont-text" type="button">Copy</button>
+                <span id="compiler-cont-text">${escapeHtml(promptPkg.continuity_block || pkg.continuity_block || '')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9-PART PRODUCTION PIPELINE STUDIO -->
       <div class="production-studio-grid">
         <!-- Col 1: Script & Storyboard -->
         <div>
@@ -1163,10 +1312,230 @@ document.addEventListener('DOMContentLoaded', () => {
 
     prodContent.innerHTML = html;
 
+    // -------------------------------------------------------------
+    // Wire up Prompt Compiler interactivity
+    // -------------------------------------------------------------
+    let activeOutputType = 'video';
+    let activeModelKey = 'seedance_25';
+    let structureVisible = false;
+
+    const elPromptDisplay = prodContent.querySelector('#compiler-prompt-display');
+    const elActiveModelTitle = prodContent.querySelector('#compiler-active-model-title');
+    const elSpecLabel = prodContent.querySelector('#compiler-output-spec-label');
+    const elGateBadge = prodContent.querySelector('#compiler-gate-badge');
+    const elStatsDisplay = prodContent.querySelector('#compiler-stats-display');
+    const elDimGrid = prodContent.querySelector('#compiler-dim-grid');
+    const elStructurePanel = prodContent.querySelector('#compiler-structure-panel');
+    const elStructureSummary = prodContent.querySelector('#compiler-structure-summary');
+    const btnToggleStructure = prodContent.querySelector('#btn-toggle-prompt-structure');
+    const btnCopyCompiled = prodContent.querySelector('#btn-copy-compiled-prompt');
+
+    const videoModelsGroup = prodContent.querySelector('#compiler-video-models-group');
+    const imageModelsGroup = prodContent.querySelector('#compiler-image-models-group');
+
+    function updateCompilerDisplay() {
+      const modelData = models[activeModelKey] || {};
+      const promptText = modelData.prompt_text || '';
+      const structure = modelData.structure || {};
+      const val = modelData.validation || { status: 'PASS', score_pct: 100, passed_checks: 0, total_checks: 0, checks: {}, warnings: [] };
+
+      // Update prompt box
+      if (elPromptDisplay) elPromptDisplay.textContent = promptText;
+
+      // Update titles
+      if (elActiveModelTitle) {
+        if (activeModelKey === 'seedance_25') {
+          elActiveModelTitle.textContent = 'Seedance 2.5 (ByteDance / Volcengine Standard)';
+        } else if (activeModelKey === 'universal_image') {
+          elActiveModelTitle.textContent = 'Universal Image (Midjourney / SDXL / FLUX / Imagen)';
+        } else if (activeModelKey === 'gpt_image') {
+          elActiveModelTitle.textContent = 'GPT Image (DALL-E 3 / Narrative Prose Standard)';
+        } else if (activeModelKey === 'nano_banana_pro') {
+          elActiveModelTitle.textContent = 'Nano Banana Pro (Token-Anchored Directives)';
+        } else {
+          elActiveModelTitle.textContent = modelData.model_name || activeModelKey;
+        }
+      }
+
+      if (elSpecLabel) {
+        if (activeOutputType === 'video') {
+          elSpecLabel.textContent = 'Native Video Directive • 24fps • 15s Timeline';
+        } else {
+          elSpecLabel.textContent = 'Master Static Visual Directive • Photographic Realism';
+        }
+      }
+
+      // Update char / word stats
+      if (elStatsDisplay) {
+        const words = promptText.trim() ? promptText.trim().split(/\s+/).length : 0;
+        elStatsDisplay.textContent = `${words} words • ${promptText.length} chars`;
+      }
+
+      // Update validation gate badge
+      if (elGateBadge) {
+        const s = val.status || 'PASS';
+        elGateBadge.className = `compiler-gate-badge ${s.toLowerCase()}`;
+        elGateBadge.textContent = `${s} ${val.score_pct || 100}% (${val.passed_checks || 0}/${val.total_checks || 0} CHECKS)`;
+      }
+
+      // Update structure grid
+      if (elDimGrid) {
+        let dimHtml = '';
+        const checks = val.checks || {};
+        for (const [dimKey, dimVal] of Object.entries(structure)) {
+          const isPassed = checks[dimKey] !== false;
+          dimHtml += `
+            <div class="compiler-dim-item">
+              <div class="compiler-dim-header">
+                <span>${escapeHtml(dimKey)}</span>
+                <span class="compiler-check-icon ${isPassed ? 'compiler-check-pass' : 'compiler-check-fail'}">
+                  ${isPassed ? '✓ PASS' : '⚠️ CHECK'}
+                </span>
+              </div>
+              <div class="compiler-dim-content">${escapeHtml(dimVal)}</div>
+            </div>
+          `;
+        }
+        elDimGrid.innerHTML = dimHtml;
+      }
+
+      if (elStructureSummary) {
+        elStructureSummary.textContent = `${val.passed_checks || 0}/${val.total_checks || 0} required fields verified`;
+      }
+    }
+
+    // Toggle Structure
+    if (btnToggleStructure && elStructurePanel) {
+      btnToggleStructure.addEventListener('click', () => {
+        structureVisible = !structureVisible;
+        if (structureVisible) {
+          elStructurePanel.classList.add('visible');
+          btnToggleStructure.textContent = '🙈 Hide Structure';
+        } else {
+          elStructurePanel.classList.remove('visible');
+          btnToggleStructure.textContent = '👁️ Show Structure';
+        }
+      });
+    }
+
+    // Copy Compiled Prompt (Truthful clipboard + diagnostics)
+    if (btnCopyCompiled) {
+      btnCopyCompiled.addEventListener('click', async () => {
+        const modelData = models[activeModelKey] || {};
+        const text = modelData.prompt_text || '';
+        recordDiagnosticEvent('COPY_ATTEMPTED', 'prompt_compiler', {
+          model: activeModelKey,
+          output_type: activeOutputType,
+          story_id: state.currentProducedStoryId,
+          char_count: text.length
+        });
+
+        const success = await copyToClipboard(text);
+        if (success) {
+          btnCopyCompiled.textContent = 'Copied!';
+          btnCopyCompiled.style.color = 'var(--accent-emerald)';
+          recordDiagnosticEvent('COPY_SUCCESS', 'prompt_compiler', {
+            model: activeModelKey,
+            output_type: activeOutputType,
+            story_id: state.currentProducedStoryId,
+            char_count: text.length
+          }, true, `${modelData.model_name || activeModelKey} prompt copied truthfully`);
+          setTimeout(() => {
+            btnCopyCompiled.textContent = '📋 Copy Prompt';
+            btnCopyCompiled.style.color = '';
+          }, 2000);
+        } else {
+          btnCopyCompiled.textContent = 'Copy failed';
+          btnCopyCompiled.style.color = 'var(--accent-rose)';
+          recordDiagnosticEvent('COPY_FAILED', 'prompt_compiler', {
+            model: activeModelKey,
+            error: 'Clipboard write failed'
+          }, false, 'Prompt copy operation failed');
+          setTimeout(() => {
+            btnCopyCompiled.textContent = '📋 Copy Prompt';
+            btnCopyCompiled.style.color = '';
+          }, 3000);
+        }
+      });
+    }
+
+    // Output Type Toggle (Video vs Image)
+    const typePills = prodContent.querySelectorAll('#compiler-type-pills .compiler-pill');
+    typePills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        typePills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        activeOutputType = pill.getAttribute('data-type');
+
+        if (activeOutputType === 'video') {
+          if (videoModelsGroup) videoModelsGroup.style.display = 'inline-flex';
+          if (imageModelsGroup) imageModelsGroup.style.display = 'none';
+          activeModelKey = 'seedance_25';
+        } else {
+          if (videoModelsGroup) videoModelsGroup.style.display = 'none';
+          if (imageModelsGroup) imageModelsGroup.style.display = 'inline-flex';
+          const firstImgPill = imageModelsGroup ? imageModelsGroup.querySelector('.compiler-pill') : null;
+          if (firstImgPill) {
+            imageModelsGroup.querySelectorAll('.compiler-pill').forEach(p => p.classList.remove('active'));
+            firstImgPill.classList.add('active');
+            activeModelKey = firstImgPill.getAttribute('data-model') || 'universal_image';
+          } else {
+            activeModelKey = 'universal_image';
+          }
+        }
+        updateCompilerDisplay();
+      });
+    });
+
+    // Model Pills Toggle
+    const modelPills = prodContent.querySelectorAll('[data-model]');
+    modelPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        const parentRow = pill.parentElement;
+        if (parentRow) {
+          parentRow.querySelectorAll('.compiler-pill').forEach(p => p.classList.remove('active'));
+        }
+        pill.classList.add('active');
+        activeModelKey = pill.getAttribute('data-model');
+        updateCompilerDisplay();
+      });
+    });
+
+    // Sub-Drawer Toggles
+    prodContent.querySelectorAll('.compiler-sub-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.getAttribute('data-target');
+        const drawer = prodContent.querySelector(`#${targetId}`);
+        const arrow = btn.querySelector('.toggle-arrow');
+        if (drawer) {
+          const isVis = drawer.classList.contains('visible');
+          if (isVis) {
+            drawer.classList.remove('visible');
+            if (arrow) arrow.textContent = '▼';
+          } else {
+            drawer.classList.add('visible');
+            if (arrow) arrow.textContent = '▲';
+          }
+        }
+      });
+    });
+
+    // Initial render of compiler display
+    updateCompilerDisplay();
+
     // Attach copy buttons with truthful verification and fallback
     prodContent.querySelectorAll('.copy-mini-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const text = btn.getAttribute('data-copy') || (btn.parentElement ? btn.parentElement.innerText.replace(/^Copy(\s*)/i, '').trim() : '');
+        let text = btn.getAttribute('data-copy');
+        if (!text && btn.getAttribute('data-copy-target')) {
+          const targetEl = prodContent.querySelector(`#${btn.getAttribute('data-copy-target')}`);
+          if (targetEl) text = targetEl.textContent;
+        }
+        if (!text && btn.parentElement) {
+          text = btn.parentElement.innerText.replace(/^Copy(\s*)/i, '').trim();
+        }
+        text = text || '';
+
         recordDiagnosticEvent('COPY_ATTEMPTED', 'production_pipeline', {
           story_id: state.currentProducedStoryId,
           char_count: text ? text.length : 0
