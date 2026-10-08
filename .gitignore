@@ -20,5 +20,6 @@ temp_uploads/
 *.db
 build/
 dist/
+*.zip
 story_forge/storage/frames/
 story_forge/tests/generic_unseen.mp4

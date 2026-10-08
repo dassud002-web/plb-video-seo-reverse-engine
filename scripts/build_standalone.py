@@ -73,7 +73,8 @@ def build():
         print(f" -> {exe_path}")
         print("=" * 70)
     else:
-        print("\n⚠️ Build finished, but expected executable was not found at:", exe_path)
+        print("\n❌ Build finished, but expected executable was not found at:", exe_path)
+        sys.exit(1)
 
 if __name__ == "__main__":
     build()

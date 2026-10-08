@@ -1,0 +1,127 @@
+name: PLB Studio Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0 or v1.0.0)'
+        required: true
+        default: '1.0.0'
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release Windows App
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version & Metadata
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $rawVer = "${{ github.event.inputs.version }}"
+          } else {
+            $rawVer = "${{ github.ref_name }}"
+          }
+          # Strip leading 'v' or 'V' to obtain clean semantic version number
+          $cleanVer = $rawVer -replace '^[vV]', ''
+          if (-not $cleanVer) {
+            $cleanVer = "1.0.0"
+          }
+          $tagName = "v$cleanVer"
+          $zipName = "PLB-Studio-v$cleanVer-windows-x64.zip"
+
+          Write-Host "Resolved Version: $cleanVer"
+          Write-Host "Resolved Tag:     $tagName"
+          Write-Host "Resolved Package: $zipName"
+
+          "VERSION=$cleanVer" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TAG_NAME=$tagName" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Run Test Suites
+        run: |
+          python story_forge/tests/test_standalone_app.py
+          python story_forge/tests/test_upload_pipeline.py
+          python story_forge/tests/test_universe_factory.py
+          python story_forge/tests/test_story_forge.py
+
+      - name: Build Standalone Executable
+        run: |
+          python scripts/build_standalone.py
+
+      - name: Verify Executable Health Check
+        shell: pwsh
+        run: |
+          $exePath = "dist\PLB-Studio\PLB-Studio.exe"
+          if (!(Test-Path $exePath)) {
+            Write-Error "CRITICAL: Compiled executable not found at $exePath"
+            exit 1
+          }
+
+          Write-Host "Testing $exePath --help..."
+          & $exePath --help
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "CRITICAL: PLB-Studio.exe failed health check with code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+          Write-Host "Executable health check passed successfully."
+
+      - name: Package Windows Distribution (ZIP)
+        shell: pwsh
+        run: |
+          $distFolder = "dist\PLB-Studio"
+          $zipPath = $env:ZIP_NAME
+
+          Write-Host "Compressing $distFolder into $zipPath..."
+          Compress-Archive -Path $distFolder -DestinationPath $zipPath -Force
+
+          if (!(Test-Path $zipPath)) {
+            Write-Error "CRITICAL: Failed to produce ZIP archive: $zipPath"
+            exit 1
+          }
+
+          $zipSizeMb = [math]::Round((Get-Item $zipPath).Length / 1MB, 2)
+          Write-Host "Package created: $zipPath ($zipSizeMb MB)"
+
+      - name: Upload Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }}
+          path: ${{ env.ZIP_NAME }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: PLB Studio ${{ env.TAG_NAME }}
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
