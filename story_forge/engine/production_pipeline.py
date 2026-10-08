@@ -291,18 +291,18 @@ def validate_production_package(pkg: Dict[str, Any]) -> List[str]:
     hero = pkg.get("hero_frame") or {}
     for f in ["composition", "lighting", "color_palette", "camera_lens"]:
         val = hero.get(f)
-        if not val or val == "Not specified":
+        if not val or not str(val).strip() or str(val).strip() == "Not specified":
             warnings.append(f"Hero Frame field '{f}' is empty or not specified")
 
     cont = pkg.get("continuity_lock") or {}
     for f in ["character_morphology", "environment_lock", "immutable_traits"]:
         val = cont.get(f)
-        if not val or val == "Not specified" or (isinstance(val, list) and not val):
+        if not val or (isinstance(val, str) and not val.strip()) or val == "Not specified" or (isinstance(val, list) and not val):
             warnings.append(f"Continuity field '{f}' is empty or not specified")
 
-    if not pkg.get("seedance_prompt"):
+    if not pkg.get("seedance_prompt") or not str(pkg.get("seedance_prompt")).strip():
         warnings.append("Seedance prompt is missing")
-    if not pkg.get("veo_prompt"):
+    if not pkg.get("veo_prompt") or not str(pkg.get("veo_prompt")).strip():
         warnings.append("Google Veo prompt is missing")
 
     return warnings
