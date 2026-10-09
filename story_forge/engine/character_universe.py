@@ -390,7 +390,8 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
     if primary_name.lower().startswith("identified as "):
         primary_name = primary_name[14:].strip().title()
 
-    profile_name = evidence.get("visual_profile_name") or story_dna.get("visual_profile", "generic")
+    profile_name = evidence.get("visual_profile_name") or story_dna.get("visual_profile")
+    is_explicit_generic = (profile_name == "generic")
 
     # Build comprehensive search context across evidence, domains, story DNA, and observed claims
     search_context_parts = [
@@ -406,7 +407,7 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         search_context_parts.append(item.get("claim", ""))
     
     lower_inf = " ".join(search_context_parts).lower()
-    if profile_name == "duck_sprinkler" or (profile_name != "generic" and "duck" in lower_inf and "puppy" in lower_inf):
+    if not is_explicit_generic and (profile_name == "duck_sprinkler" or (not profile_name and "duck" in lower_inf and "puppy" in lower_inf)):
         canon_list.append(CharacterProfile(
             id="CHAR-CANON-01",
             name="Pekin Duck",
@@ -441,7 +442,7 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         ))
         return canon_list
 
-    elif profile_name == "chicken_coop_lime" or (profile_name != "generic" and ("silkie" in lower_inf or ("chicken" in lower_inf and "coop" in lower_inf))):
+    elif not is_explicit_generic and (profile_name == "chicken_coop_lime" or (not profile_name and ("silkie" in lower_inf or ("chicken" in lower_inf and "coop" in lower_inf)))):
         canon_list.append(CharacterProfile(
             id="CHAR-CANON-01",
             name="White Silkie",
@@ -477,7 +478,7 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
             ))
         return canon_list
 
-    elif profile_name == "rabbits_horseradish" or (profile_name != "generic" and ("rabbit" in lower_inf and "horseradish" in lower_inf)):
+    elif not is_explicit_generic and (profile_name == "rabbits_horseradish" or (not profile_name and ("rabbit" in lower_inf and "horseradish" in lower_inf))):
         canon_list.append(CharacterProfile(
             id="CHAR-CANON-01",
             name="Spotted Bunny",
@@ -512,7 +513,7 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         ))
         return canon_list
 
-    elif profile_name == "turtles_grapefruit" or (profile_name != "generic" and ("turtle" in lower_inf and "grapefruit" in lower_inf)):
+    elif not is_explicit_generic and (profile_name == "turtles_grapefruit" or (not profile_name and ("turtle" in lower_inf and "grapefruit" in lower_inf))):
         canon_list.append(CharacterProfile(
             id="CHAR-CANON-01",
             name="Slider Turtle",
@@ -541,10 +542,17 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         else:
             primary_name = "Lead Protagonist"
 
+    inferred_species = "Domestic Companion"
+    lower_name = primary_name.lower()
+    for sp in ["fox", "dog", "cat", "bear", "rabbit", "horse", "wolf", "tiger", "lion", "duck", "chicken", "hen", "bird", "drone", "robot", "human"]:
+        if sp in lower_name:
+            inferred_species = sp.capitalize()
+            break
+
     canon_list.append(CharacterProfile(
         id="CHAR-CANON-01",
         name=primary_name,
-        species=primary_name,
+        species=inferred_species,
         breed="Authentic Specimen",
         age_class="Adult",
         size_class="Medium",
