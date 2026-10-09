@@ -690,6 +690,251 @@ class NanoBananaProAdapter:
 
 
 # -------------------------------------------------------------------------
+# 5B. Google Veo 2 Video Adapter (Google DeepMind Veo 2 Standard)
+# -------------------------------------------------------------------------
+
+class GoogleVeo2Adapter:
+    """
+    Authoritative Google DeepMind Veo 2 video prompting adapter.
+    Official Source: Google DeepMind Veo 2 Documentation
+    Official Capabilities: Cinematic video generation, lens & camera tracking, 24fps cinema cadence,
+                           support for 16:9 widescreen and 9:16 vertical short-form formats.
+    """
+
+    MODEL_ID = "google_veo_2"
+    MODEL_NAME = "Google Veo 2"
+    OFFICIAL_MODEL_NAMES = ["Google Veo 2", "Veo 2", "veo-2.0"]
+    PROVIDER = "Google / Google DeepMind"
+    OUTPUT_TYPE = "video"
+
+    @classmethod
+    def compile(
+        cls,
+        story: Dict[str, Any],
+        story_dna: Dict[str, Any],
+        hero_frame: Dict[str, Any],
+        continuity_lock: Dict[str, Any],
+        aspect_ratio: str = "9:16"
+    ) -> CompiledPromptResult:
+        chars = story.get("characters") or story_dna.get("characters") or [{"name": "Protagonist", "species": "Animal"}]
+        primary_char = chars[0].get("name", "Animal")
+        primary_species = chars[0].get("species", "Animal")
+
+        objects = story.get("objects") or story_dna.get("objects") or [{"name": "Mystery Object"}]
+        obj_name = objects[0].get("name", "Object")
+
+        setting = story.get("setting") or story_dna.get("setting", "Sunny Enclosure")
+        twist = story.get("twist") or "startled comedic recoil and head shake"
+        payoff = story.get("payoff") or "humorous frozen double-take looking directly into camera"
+
+        lighting = hero_frame.get("lighting") or hero_frame.get("focal_lighting") or "golden rim lighting with soft directional fill"
+        lens = hero_frame.get("camera_lens") or hero_frame.get("depth_of_field") or "50mm prime f/2.8 lens, shallow depth of field"
+
+        orientation = "vertical short-form framing (9:16)" if "9:16" in aspect_ratio else "cinematic widescreen (16:9)"
+
+        subject_dim = f"{primary_char}, an expressive {primary_species} with authentic natural anatomy and lively eyes"
+        camera_dim = f"ground-level tracking push-in shot, {lens}, smooth cinematic stabilization, {orientation}"
+        action_dim = f"cautiously approaches {obj_name}, conducts an investigative inspection, undergoes {twist}, and executes {payoff}"
+        scene_dim = f"{setting}, tactile realistic ground texture, organic environmental depth"
+        lighting_dim = f"{lighting}, authentic natural highlights and subtle cast shadows"
+        style_dim = f"Photorealistic 8k video capture, award-winning nature documentary cinematography, 24fps cinema cadence"
+        constraints_dim = f"Zero anatomical distortion, organic motion physics, no watermark or text overlay"
+
+        prompt_text = (
+            f"A cinematic 15-second tracking shot at ground level in {scene_dim}. "
+            f"{subject_dim} {action_dim}. "
+            f"{lighting_dim}. "
+            f"Shot from a {camera_dim}. "
+            f"Aspect ratio {aspect_ratio}. {style_dim}. {constraints_dim}."
+        )
+
+        structure = {
+            "Subject": subject_dim,
+            "Camera/Shot": camera_dim,
+            "Action/Event": action_dim,
+            "Scene/Environment": scene_dim,
+            "Lighting": lighting_dim,
+            "Visual Style": style_dim,
+            "Constraints": constraints_dim
+        }
+
+        validation = cls.validate(structure)
+
+        meta = DOC_REGISTRY.get_metadata(cls.MODEL_ID)
+        source_meta = meta.to_dict() if meta else {}
+        rule_prov = {r_id: r.to_dict() for r_id, r in (meta.rules.items() if meta else {}.items())}
+
+        return CompiledPromptResult(
+            model_id=cls.MODEL_ID,
+            model_name=cls.MODEL_NAME,
+            output_type=cls.OUTPUT_TYPE,
+            prompt_text=prompt_text,
+            structure=structure,
+            validation=validation,
+            source_metadata=source_meta,
+            official_claims=meta.official_claims if meta else [],
+            plb_optimizations=meta.plb_optimizations if meta else [],
+            inferred_rules=meta.inferred_rules if meta else [],
+            rule_provenance=rule_prov
+        )
+
+    @classmethod
+    def validate(cls, structure: Dict[str, str]) -> ValidationReport:
+        checks = {
+            "Subject": bool(structure.get("Subject") and len(structure["Subject"].strip()) >= 15),
+            "Camera/Shot": bool(structure.get("Camera/Shot") and len(structure["Camera/Shot"].strip()) >= 15),
+            "Action/Event": bool(structure.get("Action/Event") and len(structure["Action/Event"].strip()) >= 20),
+            "Scene/Environment": bool(structure.get("Scene/Environment") and len(structure["Scene/Environment"].strip()) >= 10),
+            "Lighting": bool(structure.get("Lighting") and len(structure["Lighting"].strip()) >= 15),
+            "Visual Style": bool(structure.get("Visual Style") and len(structure["Visual Style"].strip()) >= 15),
+            "Constraints": bool(structure.get("Constraints") and len(structure["Constraints"].strip()) >= 10)
+        }
+
+        passed = sum(1 for v in checks.values() if v)
+        total = len(checks)
+        score_pct = round((passed / total) * 100, 1)
+
+        warnings = []
+        for k, v in checks.items():
+            if not v:
+                warnings.append(f"Veo 2 field '{k}' below required threshold.")
+
+        status = "PASS" if passed == total else ("PARTIAL" if passed >= 5 else "FAIL")
+
+        return ValidationReport(
+            status=status,
+            passed_checks=passed,
+            total_checks=total,
+            score_pct=score_pct,
+            checks=checks,
+            warnings=warnings
+        )
+
+
+# -------------------------------------------------------------------------
+# 5C. Midjourney v6.1 Image Adapter (High-CTR Short-Form Cover Art)
+# -------------------------------------------------------------------------
+
+class MidjourneyAdapter:
+    """
+    Authoritative Midjourney v6.1 image generation adapter.
+    Official Source: Midjourney Official User Guide & Parameter Documentation
+    Parameter Standards:
+      --ar {aspect_ratio} (aspect ratio, default 9:16 for shorts or 16:9 for YouTube)
+      --v 6.1 (latest production model)
+      --style raw (un-stylized photographic realism)
+    """
+
+    MODEL_ID = "midjourney_v6"
+    MODEL_NAME = "Midjourney v6.1"
+    OFFICIAL_MODEL_NAMES = ["Midjourney v6.1", "Midjourney v6"]
+    PROVIDER = "Midjourney Inc."
+    OUTPUT_TYPE = "image"
+
+    @classmethod
+    def compile(
+        cls,
+        story: Dict[str, Any],
+        story_dna: Dict[str, Any],
+        hero_frame: Dict[str, Any],
+        continuity_lock: Dict[str, Any],
+        aspect_ratio: str = "9:16"
+    ) -> CompiledPromptResult:
+        chars = story.get("characters") or story_dna.get("characters") or [{"name": "Protagonist", "species": "Animal"}]
+        primary_char = chars[0].get("name", "Animal")
+        primary_species = chars[0].get("species", "Animal")
+
+        objects = story.get("objects") or story_dna.get("objects") or [{"name": "Mystery Object"}]
+        obj_name = objects[0].get("name", "Object")
+
+        setting = story.get("setting") or story_dna.get("setting", "Sunny Natural Habitat")
+
+        comp = hero_frame.get("composition") or "Dynamic rule-of-thirds low angle, ground-level perspective"
+        lighting = hero_frame.get("lighting") or hero_frame.get("focal_lighting") or "Soft golden hour side lighting with warm rim highlights"
+        palette = hero_frame.get("color_palette") or "Rich organic earth tones and vivid accents"
+        lens = hero_frame.get("camera_lens") or hero_frame.get("depth_of_field") or "85mm f/1.8 macro telephoto, sharp focal plane, creamy bokeh"
+
+        subject_dim = f"Close-up high-contrast portrait of {primary_char} ({primary_species}), hyper-expressive wide eyes filled with curious tension"
+        action_dim = f"Tense paused anticipation, paw or snout hovering centimeters above {obj_name}"
+        env_dim = f"{setting}, tactile surface textures, soft background depth"
+        lighting_dim = f"{lighting}, warm golden rim highlights catching fur fibers, palette: {palette}"
+        comp_dim = f"{comp}, subject anchored on power point with clean negative space"
+        lens_dim = f"{lens}, ultra-sharp focus on eyes with creamy background blur"
+        style_dim = f"Award-winning National Geographic wildlife cover photography, 35mm film photograph, master composition"
+        params_dim = f"--ar {aspect_ratio} --v 6.1 --style raw"
+
+        prompt_text = (
+            f"{subject_dim}, {action_dim} in {env_dim}. "
+            f"{comp_dim}. {lighting_dim}. {lens_dim}. "
+            f"{style_dim} {params_dim}"
+        )
+
+        structure = {
+            "Subject": subject_dim,
+            "Action": action_dim,
+            "Environment": env_dim,
+            "Composition": comp_dim,
+            "Lighting": lighting_dim,
+            "Optics": lens_dim,
+            "Style": style_dim,
+            "Parameters": params_dim
+        }
+
+        validation = cls.validate(structure)
+
+        meta = DOC_REGISTRY.get_metadata(cls.MODEL_ID)
+        source_meta = meta.to_dict() if meta else {}
+        rule_prov = {r_id: r.to_dict() for r_id, r in (meta.rules.items() if meta else {}.items())}
+
+        return CompiledPromptResult(
+            model_id=cls.MODEL_ID,
+            model_name=cls.MODEL_NAME,
+            output_type=cls.OUTPUT_TYPE,
+            prompt_text=prompt_text,
+            structure=structure,
+            validation=validation,
+            source_metadata=source_meta,
+            official_claims=meta.official_claims if meta else [],
+            plb_optimizations=meta.plb_optimizations if meta else [],
+            inferred_rules=meta.inferred_rules if meta else [],
+            rule_provenance=rule_prov
+        )
+
+    @classmethod
+    def validate(cls, structure: Dict[str, str]) -> ValidationReport:
+        checks = {
+            "Subject": bool(structure.get("Subject") and len(structure["Subject"].strip()) >= 15),
+            "Action": bool(structure.get("Action") and len(structure["Action"].strip()) >= 15),
+            "Environment": bool(structure.get("Environment") and len(structure["Environment"].strip()) >= 10),
+            "Composition": bool(structure.get("Composition") and len(structure["Composition"].strip()) >= 15),
+            "Lighting": bool(structure.get("Lighting") and len(structure["Lighting"].strip()) >= 15),
+            "Optics": bool(structure.get("Optics") and len(structure["Optics"].strip()) >= 15),
+            "Style": bool(structure.get("Style") and len(structure["Style"].strip()) >= 15),
+            "Parameters": bool(structure.get("Parameters") and "--ar" in structure["Parameters"] and "--v 6.1" in structure["Parameters"])
+        }
+
+        passed = sum(1 for v in checks.values() if v)
+        total = len(checks)
+        score_pct = round((passed / total) * 100, 1)
+
+        warnings = []
+        for k, v in checks.items():
+            if not v:
+                warnings.append(f"Midjourney field '{k}' below required threshold.")
+
+        status = "PASS" if passed == total else ("PARTIAL" if passed >= 6 else "FAIL")
+
+        return ValidationReport(
+            status=status,
+            passed_checks=passed,
+            total_checks=total,
+            score_pct=score_pct,
+            checks=checks,
+            warnings=warnings
+        )
+
+
+# -------------------------------------------------------------------------
 # 6. Master Prompt Compiler Engine
 # -------------------------------------------------------------------------
 
@@ -699,7 +944,8 @@ def compile_prompt_package(
     hero_frame: Optional[Dict[str, Any]] = None,
     continuity_lock: Optional[Dict[str, Any]] = None,
     script: Optional[Dict[str, Any]] = None,
-    storyboard: Optional[List[Dict[str, Any]]] = None
+    storyboard: Optional[List[Dict[str, Any]]] = None,
+    aspect_ratio: str = "9:16"
 ) -> Dict[str, Any]:
     """
     Compiles a comprehensive, model-aware PROMPT PACKAGE across Video and Image models.
@@ -711,9 +957,11 @@ def compile_prompt_package(
 
     # Compile each model-aware adapter
     res_seedance = Seedance25Adapter.compile(story, story_dna, hero, cont, script, storyboard)
+    res_veo = GoogleVeo2Adapter.compile(story, story_dna, hero, cont, aspect_ratio=aspect_ratio)
     res_universal = UniversalImageAdapter.compile(story, story_dna, hero, cont)
+    res_midjourney = MidjourneyAdapter.compile(story, story_dna, hero, cont, aspect_ratio=aspect_ratio)
     res_gpt = GPTImageAdapter.compile(story, story_dna, hero, cont)
-    res_nano = NanoBananaProAdapter.compile(story, story_dna, hero, cont)
+    res_nano = NanoBananaProAdapter.compile(story, story_dna, hero, cont, aspect_ratio=aspect_ratio)
 
     # Compile Hero Frame prompt (direct extraction from model-neutral visual specification)
     hero_frame_prompt = res_universal.prompt_text
@@ -782,10 +1030,18 @@ def compile_prompt_package(
         f"-----------------------------"
     )
 
+    # Batch Shots Prompt (Numbered format for bulk video generators)
+    batch_shots_prompt = "\n\n".join([
+        f"Shot {s['shot_number']} ({s['duration']}): {s['name']}\n{s['prompt']}"
+        for s in shot_by_shot_prompts
+    ])
+
     # Package Summary & Overall Status
     all_statuses = [
         res_seedance.validation.status,
+        res_veo.validation.status,
         res_universal.validation.status,
+        res_midjourney.validation.status,
         res_gpt.validation.status,
         res_nano.validation.status
     ]
@@ -800,28 +1056,36 @@ def compile_prompt_package(
     # Documentation Source Registry Summary
     sources_summary = {
         m_id: DOC_REGISTRY.get_metadata(m_id).to_dict()
-        for m_id in ["seedance_25", "universal_image", "gpt_image", "nano_banana_pro"]
+        for m_id in ["seedance_25", "google_veo_2", "universal_image", "midjourney_v6", "gpt_image", "nano_banana_pro"]
         if DOC_REGISTRY.get_metadata(m_id)
     }
 
     return {
         "compiler_version": "PLB_PROMPT_COMPILER_V2_GROUNDED",
         "overall_status": overall_status,
+        "aspect_ratio": aspect_ratio,
         "story_id": story.get("story_id", "STORY-01"),
         "title": story.get("title", "Story Concept"),
         "models": {
             "seedance_25": res_seedance.to_dict(),
+            "google_veo_2": res_veo.to_dict(),
             "universal_image": res_universal.to_dict(),
+            "midjourney_v6": res_midjourney.to_dict(),
             "gpt_image": res_gpt.to_dict(),
             "nano_banana_pro": res_nano.to_dict()
         },
         "source_registry": sources_summary,
         # Direct prompt shortcuts
         "seedance_25_prompt": res_seedance.prompt_text,
+        "veo_prompt": res_veo.prompt_text,
+        "veo_2_prompt": res_veo.prompt_text,
         "universal_image_prompt": res_universal.prompt_text,
+        "midjourney_prompt": res_midjourney.prompt_text,
         "gpt_image_prompt": res_gpt.prompt_text,
         "nano_banana_pro_prompt": res_nano.prompt_text,
         "hero_frame_prompt": hero_frame_prompt,
         "shot_by_shot_prompts": shot_by_shot_prompts,
+        "batch_shots_prompt": batch_shots_prompt,
         "continuity_block": continuity_block
     }
+

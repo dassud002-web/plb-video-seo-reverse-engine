@@ -442,6 +442,105 @@ class DocumentationRegistry:
             rules=universal_rules
         )
 
+        # 5. GOOGLE VEO 2 (Google DeepMind)
+        veo2_rules = {
+            "VEO2_CINEMATIC_DIRECTIVE": ModelRule(
+                rule_id="VEO2_CINEMATIC_DIRECTIVE",
+                classification=RuleClassification.OFFICIAL_RULE,
+                title="Google Veo 2 Cinematic Video Prompting",
+                description="Prompts must specify camera perspective, lens framing, subject motion, physics interaction, and lighting.",
+                source_name="Google DeepMind Veo 2 Documentation",
+                source_url="https://deepmind.google/technologies/veo/veo-2/",
+                source_section="Prompting & Cinematic Camera Control",
+                verification_quote="Veo 2 accurately understands cinematic terminology like lens focal length, tracking shots, and dynamic lighting conditions.",
+                is_official=True
+            ),
+            "VEO2_ASPECT_RATIO": ModelRule(
+                rule_id="VEO2_ASPECT_RATIO",
+                classification=RuleClassification.OFFICIAL_RULE,
+                title="Veo 2 Mobile Short-Form & Widescreen Aspect Ratios",
+                description="Supports both 16:9 widescreen and 9:16 vertical short-form framing directives.",
+                source_name="Google DeepMind Veo 2 Documentation",
+                source_url="https://deepmind.google/technologies/veo/veo-2/",
+                source_section="Output Specifications & Formats",
+                verification_quote="Generate in 16:9 widescreen or 9:16 vertical video optimized for mobile platforms.",
+                is_official=True
+            )
+        }
+        self._sources["google_veo_2"] = ModelDocumentationMetadata(
+            model_id="google_veo_2",
+            model_name="Google Veo 2",
+            official_model_names=["Google Veo 2", "Veo 2", "veo-2.0"],
+            provider="Google / Google DeepMind",
+            source_name="Google DeepMind Veo 2 Official Prompting Documentation",
+            source_url="https://deepmind.google/technologies/veo/veo-2/",
+            source_checked_at="2026-10-09",
+            documentation_version_or_date="March 2026 Documentation",
+            prompt_schema_version="veo-2.0-cinematic",
+            official_claims=[
+                "Cinematic high-definition text-to-video with realistic camera control",
+                "Understands cinematic terms: camera angles, lighting dynamics, lenses, frame rates",
+                "Native support for 16:9 landscape and 9:16 vertical short-form formats"
+            ],
+            plb_optimizations=[
+                "Ground-level tracking perspective tailored for small animal comedic tension",
+                "Explicit 15-second pacing milestones aligned with TikTok and YouTube Shorts retention"
+            ],
+            inferred_rules=[
+                "Pacing directives prevent sudden scene shifts or morphing artifacts"
+            ],
+            rules=veo2_rules
+        )
+
+        # 6. MIDJOURNEY V6.1 (Midjourney Inc.)
+        mj_rules = {
+            "MJ6_PARAMETERS": ModelRule(
+                rule_id="MJ6_PARAMETERS",
+                classification=RuleClassification.OFFICIAL_RULE,
+                title="Midjourney v6.1 Parameters",
+                description="Uses official flags --ar for aspect ratio, --v 6.1 for engine version, and --style raw for neutral photographic rendering.",
+                source_name="Midjourney Official Parameter List",
+                source_url="https://docs.midjourney.com/docs/parameter-list",
+                source_section="Parameter Documentation",
+                verification_quote="Use --ar to change the aspect ratio of the generated image. Use --style raw to reduce the default Midjourney aesthetic.",
+                is_official=True
+            ),
+            "MJ6_THUMBNAIL_COMPOSITION": ModelRule(
+                rule_id="MJ6_THUMBNAIL_COMPOSITION",
+                classification=RuleClassification.PLB_OPTIMIZATION,
+                title="High-CTR Short-Form Cover Composition",
+                description="High visual contrast, expressive eyes, and power-point positioning optimized for YouTube Shorts / TikTok thumbnails.",
+                source_name="PLB Creator Studio Best Practices",
+                source_url="https://plb.studio/guidance/creator-thumbnails",
+                source_section="Thumbnail & Cover Art Guidance",
+                verification_quote="Thumbnail click-through rates maximize when the subject facial reaction is sharp, uncluttered, and high-contrast.",
+                is_official=False
+            )
+        }
+        self._sources["midjourney_v6"] = ModelDocumentationMetadata(
+            model_id="midjourney_v6",
+            model_name="Midjourney v6.1",
+            official_model_names=["Midjourney v6.1", "Midjourney v6"],
+            provider="Midjourney Inc.",
+            source_name="Midjourney Official Documentation & User Guide",
+            source_url="https://docs.midjourney.com/docs/parameter-list",
+            source_checked_at="2026-10-09",
+            documentation_version_or_date="v6.1 Latest",
+            prompt_schema_version="mj-v6.1-parameters",
+            official_claims=[
+                "Photorealistic textures, fine fur, skin, and micro-surface reflections",
+                "Parameter flags: --ar (aspect ratio), --v 6.1 (model version), --style raw"
+            ],
+            plb_optimizations=[
+                "High-CTR cover composition optimized for mobile short-form feed cards",
+                "Cinematic color grading matched to video production package palette"
+            ],
+            inferred_rules=[
+                "Descriptive phrases outperform comma-separated keyword spam in v6.1"
+            ],
+            rules=mj_rules
+        )
+
     def get_metadata(self, model_id: str) -> Optional[ModelDocumentationMetadata]:
         return self._sources.get(model_id)
 

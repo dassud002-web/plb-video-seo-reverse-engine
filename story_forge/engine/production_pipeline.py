@@ -269,22 +269,25 @@ def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any]) -> D
         "pinned_comment": f"The face right at the end took me out completely 😂 What should we let {primary_char} try next?"
     }
 
-    # 10. Model-Aware Prompt Compiler (Seedance 2.5, Universal Image, GPT Image, Nano Banana Pro)
+    # 10. Model-Aware Prompt Compiler
     prompt_package = compile_prompt_package(
         story=story,
         story_dna=story_dna,
         hero_frame=hero_frame,
         continuity_lock=continuity_lock,
         script=script_15s,
-        storyboard=storyboard_6shot
+        storyboard=storyboard_6shot,
+        aspect_ratio=aspect_ratio
     )
-    # Update seedance_prompt to the rich model-aware Seedance 2.5 prompt while preserving veo_prompt
     if prompt_package.get("seedance_25_prompt"):
         seedance_prompt = prompt_package["seedance_25_prompt"]
+    if prompt_package.get("veo_2_prompt"):
+        veo_prompt = prompt_package["veo_2_prompt"]
 
-    return {
+    pkg_result = {
         "story_id": story_id,
         "title": title,
+        "aspect_ratio": aspect_ratio,
         "script_15s": script_15s,
         "production_script_15s": script_15s,
         "storyboard_6shot": storyboard_6shot,
@@ -293,6 +296,7 @@ def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any]) -> D
         "continuity_lock": continuity_lock,
         "seedance_prompt": seedance_prompt,
         "veo_prompt": veo_prompt,
+        "veo_2_prompt": veo_prompt,
         "audio_plan": audio_plan,
         "platform_captions": platform_captions,
         "seo_pack": seo_pack,
@@ -301,12 +305,166 @@ def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any]) -> D
         "compiled_prompts": prompt_package.get("models", {}),
         "seedance_25_prompt": prompt_package.get("seedance_25_prompt", seedance_prompt),
         "universal_image_prompt": prompt_package.get("universal_image_prompt", ""),
+        "midjourney_prompt": prompt_package.get("midjourney_prompt", ""),
         "gpt_image_prompt": prompt_package.get("gpt_image_prompt", ""),
         "nano_banana_pro_prompt": prompt_package.get("nano_banana_pro_prompt", ""),
         "hero_frame_prompt": prompt_package.get("hero_frame_prompt", ""),
         "shot_by_shot_prompts": prompt_package.get("shot_by_shot_prompts", []),
+        "batch_shots_prompt": prompt_package.get("batch_shots_prompt", ""),
         "continuity_block": prompt_package.get("continuity_block", "")
     }
+
+    pkg_result["markdown_package"] = format_production_package_markdown(pkg_result)
+    return pkg_result
+
+
+def format_production_package_markdown(pkg: Dict[str, Any]) -> str:
+    """
+    Renders a complete, professional, publication-ready Markdown production package
+    for short-form video creators, directors, and AI prompt operators.
+    """
+    story_id = pkg.get("story_id", "STORY-01")
+    title = pkg.get("title", "Story Concept")
+    ar = pkg.get("aspect_ratio", "9:16")
+    script = pkg.get("script_15s") or pkg.get("production_script_15s") or {}
+    storyboard = pkg.get("storyboard_6shot") or pkg.get("storyboard_6_shots") or []
+    hero = pkg.get("hero_frame") or {}
+    cont = pkg.get("continuity_lock") or {}
+    audio = pkg.get("audio_plan") or {}
+    captions = pkg.get("platform_captions") or {}
+    seo = pkg.get("seo_pack") or {}
+
+    md_lines = [
+        f"# 🎬 PRODUCTION PACKAGE: [{story_id}] {title}",
+        f"**Format**: 15-Second Short-Form Video (Aspect Ratio: `{ar}`)",
+        f"**Engine**: PLB Creator Studio (Model-Aware Prompt Compiler)",
+        "",
+        "---",
+        "",
+        "## ⏱️ 1. 15-SECOND SHORT-FORM PRODUCTION SCRIPT",
+        f"**Target Duration**: {script.get('duration_seconds', 15)} seconds",
+        ""
+    ]
+
+    for b in script.get("beats", []):
+        md_lines.append(f"### 📍 {b.get('timestamp')} — {b.get('beat_name')}")
+        md_lines.append(f"**Action**: {b.get('action')}")
+        md_lines.append(f"**Foley / SFX**: {b.get('foley')}")
+        if b.get("audio_cue"):
+            md_lines.append(f"**Music Cue**: {b.get('audio_cue')}")
+        md_lines.append("")
+
+    md_lines.extend([
+        "---",
+        "",
+        "## 🎬 2. 6-SHOT VIRAL STORYBOARD",
+        ""
+    ])
+
+    for s in storyboard:
+        s_num = s.get("shot_number", 1)
+        s_name = s.get("name") or s.get("beat") or f"Shot {s_num}"
+        s_dur = s.get("duration", "2-3s")
+        md_lines.append(f"#### Shot {s_num}: {s_name} ({s_dur})")
+        md_lines.append(f"- **Framing & Optics**: {s.get('framing') or s.get('shot_type', 'Medium Shot')}")
+        md_lines.append(f"- **Camera Movement**: {s.get('camera_movement') or s.get('camera_angle', 'Static')}")
+        md_lines.append(f"- **Action / Narrative**: {s.get('action') or s.get('description', '')}")
+        if s.get("visual_anchor"):
+            md_lines.append(f"- **Visual Anchor**: {s.get('visual_anchor')}")
+        md_lines.append("")
+
+    md_lines.extend([
+        "---",
+        "",
+        "## 🖼️ 3. HERO FRAME SPECIFICATION",
+        f"- **Composition**: {hero.get('composition', 'Not specified')}",
+        f"- **Lighting**: {hero.get('lighting', hero.get('focal_lighting', 'Not specified'))}",
+        f"- **Color Palette**: {hero.get('color_palette', 'Not specified')}",
+        f"- **Lens & Optics**: {hero.get('camera_lens', hero.get('depth_of_field', 'Not specified'))}",
+        f"- **Focal Expression**: {hero.get('focal_expression', 'Not specified')}",
+        "",
+        "---",
+        "",
+        "## 🔒 4. CONTINUITY LOCK DIRECTIVES",
+        f"- **Character Morphology**: {cont.get('character_morphology', 'Not specified')}",
+        f"- **Environment Lock**: {cont.get('environment_lock', 'Not specified')}",
+        f"- **Immutable Invariants**: {', '.join(cont.get('immutable_traits', [])) if isinstance(cont.get('immutable_traits'), list) else cont.get('immutable_traits', 'Not specified')}",
+        "",
+        "---",
+        "",
+        "## 🤖 5. MODEL-AWARE AI VIDEO PROMPTS",
+        "",
+        "### 🎥 Seedance 2.5 (ByteDance / Doubao Standard)",
+        "```",
+        pkg.get("seedance_25_prompt") or pkg.get("seedance_prompt", ""),
+        "```",
+        "",
+        "### 🎥 Google Veo 2",
+        "```",
+        pkg.get("veo_prompt") or pkg.get("veo_2_prompt", ""),
+        "```",
+        "",
+        "### 🖼️ Midjourney v6.1 (High-CTR Cover / Thumbnail)",
+        "```",
+        pkg.get("midjourney_prompt", ""),
+        "```",
+        "",
+        "### 🖼️ Master Universal Image Prompt",
+        "```",
+        pkg.get("hero_frame_prompt") or pkg.get("universal_image_prompt", ""),
+        "```",
+        "",
+        "### 🖼️ GPT Image (OpenAI gpt-image-2.5)",
+        "```",
+        pkg.get("gpt_image_prompt", ""),
+        "```",
+        "",
+        "### 🖼️ Nano Banana Pro (Google DeepMind gemini-3-pro-image)",
+        "```",
+        pkg.get("nano_banana_pro_prompt", ""),
+        "```",
+        "",
+        "---",
+        "",
+        "## 🎧 6. SOUND & FOLEY AUDIO PLAN",
+        f"- **Tempo / BPM**: {audio.get('tempo_bpm', '118 BPM')}",
+        f"- **Instrumentation**: {audio.get('instrumentation', '-')}",
+        "- **Foley Cues**:"
+    ])
+
+    for fc in audio.get("foley_cues", []):
+        md_lines.append(f"  * {fc}")
+    md_lines.append(f"- **Voiceover Style**: {audio.get('voiceover_pantomime', 'Pantomime comedy - zero speech required')}")
+
+    md_lines.extend([
+        "",
+        "---",
+        "",
+        "## 📱 7. MULTI-PLATFORM VIRAL CAPTIONS",
+        "### 🎵 TikTok",
+        captions.get("tiktok", "-"),
+        "",
+        "### 📸 Instagram Reels",
+        captions.get("instagram_reels", "-"),
+        "",
+        "### 🔴 YouTube Shorts",
+        captions.get("youtube_shorts", "-"),
+        "",
+        "### 📘 Facebook Reels",
+        captions.get("facebook_reels", "-"),
+        "",
+        "---",
+        "",
+        "## 📈 8. EVIDENCE-BASED SEO & DISCOVERY PACK",
+        f"- **Primary Topic**: {seo.get('primary_topic', '-')}",
+        f"- **Primary Keyword**: `{seo.get('primary_keyword', '-')}`",
+        f"- **Long-Tail Queries**: {', '.join(seo.get('long_tail_queries', []))}",
+        f"- **Hashtags**: {' '.join(seo.get('hashtags', []))}",
+        f"- **Pinned Comment**: \"{seo.get('pinned_comment', '-')}\"",
+        ""
+    ])
+
+    return "\n".join(md_lines)
 
 
 def validate_production_package(pkg: Dict[str, Any]) -> List[str]:

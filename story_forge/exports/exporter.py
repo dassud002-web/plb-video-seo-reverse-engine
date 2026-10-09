@@ -320,6 +320,66 @@ def export_top_stories_csv(session_id: str) -> str:
 
     return output.getvalue()
 
+def export_creator_schedule_csv(session_id: str) -> str:
+    """Exports social media scheduler-ready CSV with viral hooks, captions, hashtags, and video prompts."""
+    session = get_session(session_id)
+    if not session:
+        raise ValueError(f"Session not found: {session_id}")
+
+    stories = get_all_stories_for_session(session_id)
+    top_stories = rank_story_universe(stories, top_n=100, sort_by="quality")
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Story ID", "Title", "World", "Quality Score",
+        "Viral Hook (0-3s)", "TikTok Caption", "Instagram Reels Caption", "YouTube Shorts Caption",
+        "Target Keyword", "Hashtags", "Pinned Comment",
+        "Seedance 2.5 Prompt", "Google Veo 2 Prompt"
+    ])
+
+    for s in top_stories:
+        chars = s.get("characters", [{"name": "Animal", "species": "animal"}])
+        char_name = chars[0].get("name", "Animal")
+        species = chars[0].get("species", "animal").lower()
+        obj = s.get("objects", [{"name": "Object"}])[0].get("name", "Object")
+        hook = s.get("hook", "")
+        twist = s.get("twist", "")
+        payoff = s.get("payoff", "")
+
+        tiktok_cap = f"POV: your {species} meets a {obj.lower()} 😂 Wait for the end 💀 #{species} #funnyanimals #viral"
+        ig_cap = f"He was NOT ready! 😂 {char_name} vs {obj}. #{species} #petreels #cuteanimals #explorepage"
+        shorts_cap = f"{char_name} vs {obj}! Confused reaction 😂 #shorts #{species} #funny"
+        tags = f"#{species} #funnyanimals #cuteanimals #viralshorts #trending"
+        pinned = f"The face at the end took me out completely 😂 What should {char_name} try next?"
+
+        seedance_p = (
+            f"Cinematic photorealistic 8k video, {s.get('setting', 'Enclosure')}. "
+            f"{char_name} curiously approaches {obj}. {twist}, finishing with {payoff} looking directly into camera. 24fps."
+        )
+        veo_p = (
+            f"A cinematic 15-second tracking shot at ground level in {s.get('setting', 'Enclosure')}. "
+            f"{char_name} cautiously approaches {obj}. {twist}, followed by comedic recoil. Photorealistic nature documentary style, f/2.8."
+        )
+
+        writer.writerow([
+            s.get("story_id"),
+            s.get("title"),
+            s.get("world_name", s.get("mode")),
+            s.get("quality_score"),
+            hook,
+            tiktok_cap,
+            ig_cap,
+            shorts_cap,
+            f"{char_name.lower()} reacts to {obj.lower()}",
+            tags,
+            pinned,
+            seedance_p,
+            veo_p
+        ])
+
+    return output.getvalue()
+
 def build_full_universe_zip_bundle(session_id: str) -> bytes:
     """Builds complete ZIP bundle containing all Universe documents and keyframes."""
     session = get_session(session_id)
@@ -331,6 +391,7 @@ def build_full_universe_zip_bundle(session_id: str) -> bytes:
     char_md = export_character_bible_markdown(session_id)
     rel_md = export_relationship_graph_markdown(session_id)
     top_csv = export_top_stories_csv(session_id)
+    creator_csv = export_creator_schedule_csv(session_id)
 
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as z:
@@ -339,6 +400,7 @@ def build_full_universe_zip_bundle(session_id: str) -> bytes:
         z.writestr("character_bible.md", char_md.encode("utf-8"))
         z.writestr("relationship_graph.md", rel_md.encode("utf-8"))
         z.writestr("top_stories.csv", top_csv.encode("utf-8"))
+        z.writestr("creator_schedule.csv", creator_csv.encode("utf-8"))
 
         # Cached Keyframe Images
         video_hash = session.get("source_video_hash")
