@@ -642,14 +642,43 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('dna-char-dynamic').textContent = dna.primary_character_dynamic || '-';
     document.getElementById('dna-engine').textContent = dna.primary_comedic_emotional_engine || '-';
 
+    const discBox = document.getElementById('dna-disclosure-box');
+    if (discBox) {
+      if (dna.cv_limitation_disclosed) {
+        discBox.innerHTML = `
+          <div class="dna-disclosure-banner" style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.28); border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.85rem; color: #fbbf24; line-height: 1.45;">
+            <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+              <span>⚠️</span>
+              <span>Local Offline Computer Vision Disclosure</span>
+            </div>
+            <div style="margin-top: 4px; color: #e2e8f0; font-size: 0.82rem;">
+              Analysis is grounded in timeline keyframes (5%–95%), optical motion dynamics, and color/luminance distribution. 
+              Deep neural species/object taxonomy classification is offline. Unclassified identities are explicitly reported rather than synthesized.
+              ${dna.metadata_cue ? `<span style="display:block; margin-top: 5px; color: #94a3b8;">Filename Reference Hint: <em>${escapeHtml(dna.metadata_cue)}</em> (Unverified metadata cue)</span>` : ''}
+            </div>
+          </div>`;
+      } else {
+        discBox.innerHTML = '';
+      }
+    }
+
     const charsDiv = document.getElementById('dna-chars-setting');
     let charsHtml = `<p><strong>Setting:</strong> ${escapeHtml(dna.setting || '-')}</p>`;
     charsHtml += `<p><strong>Observed:</strong> ${escapeHtml(dna.setting_observed || '-')}</p>`;
     charsHtml += `<p><strong>Characters:</strong></p><ul>`;
     (dna.characters || []).forEach(c => {
-      charsHtml += `<li><strong>${escapeHtml(c.name)}</strong>: ${escapeHtml(c.observed_fact || '')}</li>`;
+      let cueBadge = c.metadata_cue ? ` <span style="font-size:0.75rem; background:rgba(148,163,184,0.15); border:1px solid rgba(148,163,184,0.3); border-radius:3px; padding:1px 5px; color:#cbd5e1;">Hint: ${escapeHtml(c.metadata_cue)}</span>` : '';
+      charsHtml += `<li><strong>${escapeHtml(c.name)}</strong>${cueBadge}: ${escapeHtml(c.observed_fact || '')}</li>`;
     });
     charsHtml += `</ul>`;
+
+    if (dna.objects && dna.objects.length > 0) {
+      charsHtml += `<p><strong>Interactive Objects:</strong></p><ul>`;
+      (dna.objects || []).forEach(o => {
+        charsHtml += `<li><strong>${escapeHtml(o.name)}</strong>: ${escapeHtml(o.observed_fact || '')}</li>`;
+      });
+      charsHtml += `</ul>`;
+    }
     charsDiv.innerHTML = charsHtml;
 
     const progDiv = document.getElementById('dna-progression');

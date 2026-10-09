@@ -195,12 +195,13 @@ def build_root_genome(
     story_id = f"UNIV-{story_idx:04d}"
     lead_name = characters[0]["name"] if characters else "Protagonist"
     partner_name = characters[1]["name"] if len(characters) > 1 else ""
-    w_name = world.get("name", "ANIMAL_COMEDY").replace("_", " ").title()
-
-    title = f"{w_name}: {lead_name} {f'& {partner_name}' if partner_name else ''} and The {story_dna.get('setting', 'Enclosure')}"
+    clean_set = story_dna.get("setting", "The Setting").split(" / ")[0].strip()
+    title = f"{w_name}: {lead_name}{f' & {partner_name}' if partner_name else ''} in {clean_set}"
     premise = story_dna.get("core_premise", "An animal explores a mysterious object.")
 
-    obj_name = story_dna.get("objects", [{}])[0].get("name", "Mystery Object") if story_dna.get("objects") else "Curious Treat"
+    obj_name = story_dna.get("objects", [{}])[0].get("name", "Mystery Object") if story_dna.get("objects") else "Interactive Object"
+    if any(tok in obj_name.lower() for tok in ["focal element", "target object", "foreground interactive object"]):
+        obj_name = "Interactive Object"
 
     return StoryGenome(
         story_id=story_id,
