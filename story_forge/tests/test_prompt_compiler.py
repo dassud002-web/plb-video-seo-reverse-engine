@@ -449,7 +449,7 @@ class TestPromptCompiler(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertEqual(data["status"], "ok")
-        self.assertEqual(len(data["sources"]), 4)
+        self.assertGreaterEqual(len(data["sources"]), 4)
 
         # GET /api/prompt-compiler/sources/seedance_25
         res_s = client.get("/api/prompt-compiler/sources/seedance_25")

@@ -18,7 +18,7 @@ from dataclasses import dataclass, asdict
 from typing import Dict, Any, List
 from story_forge.engine.prompt_compiler import compile_prompt_package
 
-def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any]) -> Dict[str, Any]:
+def produce_story_package(story: Dict[str, Any], story_dna: Dict[str, Any], aspect_ratio: str = "9:16") -> Dict[str, Any]:
     """
     Synthesizes a production package from a single Story Genome.
     """

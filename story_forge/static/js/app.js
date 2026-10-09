@@ -138,6 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const prodContent = document.getElementById('production-content');
   const btnRefreshProduction = document.getElementById('btn-refresh-production');
   const btnCopyProductionPack = document.getElementById('btn-copy-production-pack');
+  const btnDownloadProductionPack = document.getElementById('btn-download-production-pack');
 
   // Auto-Grow Controls
   const autogrowTargetCount = document.getElementById('autogrow-target-count');
@@ -157,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExportCharBible = document.getElementById('btn-export-char-bible');
   const btnExportRelGraph = document.getElementById('btn-export-rel-graph');
   const btnExportCsv = document.getElementById('btn-export-csv');
+  const btnExportCreatorSchedule = document.getElementById('btn-export-creator-schedule');
   const btnExportJson = document.getElementById('btn-export-json');
   const btnExportZip = document.getElementById('btn-export-zip');
 
@@ -1176,19 +1178,23 @@ document.addEventListener('DOMContentLoaded', () => {
     loadProductionPackage(storyId);
   }
 
-  async function loadProductionPackage(storyId, forceRefresh = false) {
+  async function loadProductionPackage(storyId, forceRefresh = false, aspectRatio = null) {
     if (!state.currentSessionId || !storyId) return;
     state.currentProducedStoryId = storyId;
+    const ar = aspectRatio || state.currentAspectRatio || '9:16';
+    state.currentAspectRatio = ar;
 
     prodContent.innerHTML = '<p class="placeholder-text">Synthesizing 9-part production package...</p>';
 
     try {
       const endpoint = forceRefresh
-        ? `/api/produce/${state.currentSessionId}/${storyId}`
-        : `/api/production/${state.currentSessionId}/${storyId}`;
+        ? `/api/produce/${state.currentSessionId}/${storyId}?aspect_ratio=${encodeURIComponent(ar)}`
+        : `/api/production/${state.currentSessionId}/${storyId}?aspect_ratio=${encodeURIComponent(ar)}`;
 
       const res = await fetch(endpoint, {
-        method: forceRefresh ? 'POST' : 'GET'
+        method: forceRefresh ? 'POST' : 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        body: forceRefresh ? JSON.stringify({ aspect_ratio: ar }) : undefined
       });
       const data = await res.json();
       if (data.status === 'ok') {
@@ -1202,6 +1208,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderProductionPackage(pkg) {
+    state.currentProductionPackage = pkg;
     const script = pkg.production_script_15s || {};
     const storyboard = pkg.storyboard_6_shots || [];
     const hero = pkg.hero_frame || {};
@@ -1264,6 +1271,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <span class="compiler-group-label">Video Model:</span>
               <div class="compiler-pills-row">
                 <button class="compiler-pill active" data-model="seedance_25" type="button">Seedance 2.5</button>
+                <button class="compiler-pill" data-model="google_veo_2" type="button">Google Veo 2</button>
               </div>
             </div>
 
@@ -1272,9 +1280,17 @@ document.addEventListener('DOMContentLoaded', () => {
               <span class="compiler-group-label">Image Model:</span>
               <div class="compiler-pills-row">
                 <button class="compiler-pill active" data-model="universal_image" type="button">Universal Image</button>
+                <button class="compiler-pill" data-model="midjourney_v6" type="button">Midjourney v6.1</button>
                 <button class="compiler-pill" data-model="gpt_image" type="button">GPT Image</button>
                 <button class="compiler-pill" data-model="nano_banana_pro" type="button">Nano Banana Pro</button>
               </div>
+            </div>
+
+            <!-- Aspect Ratio Toggle -->
+            <span class="compiler-group-label">Aspect:</span>
+            <div class="compiler-pills-row" id="compiler-aspect-pills">
+              <button class="compiler-pill ${(pkg.aspect_ratio || state.currentAspectRatio || '9:16') === '9:16' ? 'active' : ''}" data-aspect="9:16" type="button">📱 9:16 Vertical</button>
+              <button class="compiler-pill ${(pkg.aspect_ratio || state.currentAspectRatio) === '16:9' ? 'active' : ''}" data-aspect="16:9" type="button">🖥️ 16:9 Landscape</button>
             </div>
           </div>
           <div style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono);" id="compiler-stats-display"></div>
@@ -1316,10 +1332,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
           <!-- 6 Shot-by-Shot Prompts -->
           <div>
-            <button class="compiler-sub-toggle-btn" data-target="compiler-shots-drawer" type="button">
-              <span>🎬 6 Shot-by-Shot Video Prompts (Timestamps & Angles)</span>
-              <span class="toggle-arrow">▼</span>
-            </button>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <button class="compiler-sub-toggle-btn" data-target="compiler-shots-drawer" type="button" style="flex:1;">
+                <span>🎬 6 Shot-by-Shot Video Prompts (Timestamps & Angles)</span>
+                <span class="toggle-arrow">▼</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-copy-batch-shots" type="button" style="margin-left:0.5rem; white-space:nowrap;">📋 Copy All 6 Shots</button>
+            </div>
             <div class="compiler-sub-content" id="compiler-shots-drawer">
               <div class="storyboard-grid" id="compiler-shots-list" style="margin-top:0.5rem;">
     `;
@@ -1515,8 +1534,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (elActiveModelTitle) {
         if (activeModelKey === 'seedance_25') {
           elActiveModelTitle.textContent = 'Seedance 2.5 (ByteDance / Volcengine Standard)';
+        } else if (activeModelKey === 'google_veo_2') {
+          elActiveModelTitle.textContent = 'Google Veo 2 (DeepMind Cinematic Video)';
         } else if (activeModelKey === 'universal_image') {
           elActiveModelTitle.textContent = 'Universal Image (Model-Neutral Specification)';
+        } else if (activeModelKey === 'midjourney_v6') {
+          elActiveModelTitle.textContent = 'Midjourney v6.1 (High-CTR Cover Art)';
         } else if (activeModelKey === 'gpt_image') {
           elActiveModelTitle.textContent = 'GPT Image (OpenAI gpt-image-2.5-flare / sunburst)';
         } else if (activeModelKey === 'nano_banana_pro') {
@@ -1680,6 +1703,44 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    // Aspect Ratio Toggle
+    const aspectPills = prodContent.querySelectorAll('#compiler-aspect-pills .compiler-pill');
+    aspectPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        const chosenAspect = pill.getAttribute('data-aspect');
+        if (chosenAspect !== (state.currentAspectRatio || '9:16')) {
+          state.currentAspectRatio = chosenAspect;
+          aspectPills.forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          loadProductionPackage(state.currentProducedStoryId, true, chosenAspect);
+        }
+      });
+    });
+
+    // Copy All 6 Shots Batch Button
+    const btnCopyBatchShots = prodContent.querySelector('#btn-copy-batch-shots');
+    if (btnCopyBatchShots) {
+      btnCopyBatchShots.addEventListener('click', async () => {
+        const batchText = promptPkg.batch_shots_prompt || pkg.batch_shots_prompt || '';
+        recordDiagnosticEvent('COPY_ATTEMPTED', 'prompt_compiler', { item: 'batch_shots_prompt', story_id: state.currentProducedStoryId });
+        const success = await copyToClipboard(batchText);
+        if (success) {
+          btnCopyBatchShots.textContent = 'Copied 6 Shots!';
+          btnCopyBatchShots.style.color = 'var(--accent-emerald)';
+          recordDiagnosticEvent('COPY_SUCCESS', 'prompt_compiler', { item: 'batch_shots_prompt', story_id: state.currentProducedStoryId }, true, 'Batch shots prompt copied');
+          setTimeout(() => {
+            btnCopyBatchShots.textContent = '📋 Copy All 6 Shots';
+            btnCopyBatchShots.style.color = '';
+          }, 2000);
+        } else {
+          btnCopyBatchShots.textContent = 'Copy failed';
+          setTimeout(() => {
+            btnCopyBatchShots.textContent = '📋 Copy All 6 Shots';
+          }, 2500);
+        }
+      });
+    }
+
     // Sub-Drawer Toggles
     prodContent.querySelectorAll('.compiler-sub-toggle-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1748,26 +1809,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Copy Full Production Pack Markdown
+  // Copy Full Production Pack Markdown (Clean truthful markdown)
   btnCopyProductionPack.addEventListener('click', async () => {
     const sid = state.currentProducedStoryId;
     if (!sid) {
       alert('Please select and produce a story first.');
       return;
     }
-    const text = prodContent.innerText;
+    const text = (state.currentProductionPackage && state.currentProductionPackage.markdown_package) || prodContent.innerText;
     recordDiagnosticEvent('COPY_ATTEMPTED', 'production_pipeline', { item: 'full_package', story_id: sid });
     const success = await copyToClipboard(text);
     if (success) {
       recordDiagnosticEvent('COPY_SUCCESS', 'production_pipeline', { item: 'full_package', story_id: sid }, true, 'Full package copied');
       btnCopyProductionPack.textContent = 'Copied Package!';
-      setTimeout(() => btnCopyProductionPack.textContent = 'Copy Production Pack (Markdown)', 2000);
+      setTimeout(() => btnCopyProductionPack.textContent = '📋 Copy Full Pack', 2000);
     } else {
       recordDiagnosticEvent('COPY_FAILED', 'production_pipeline', { item: 'full_package', story_id: sid }, false, 'Full package copy failed');
       btnCopyProductionPack.textContent = 'Copy failed — try again';
-      setTimeout(() => btnCopyProductionPack.textContent = 'Copy Production Pack (Markdown)', 3000);
+      setTimeout(() => btnCopyProductionPack.textContent = '📋 Copy Full Pack', 3000);
     }
   });
+
+  // Download Production Package Markdown
+  if (btnDownloadProductionPack) {
+    btnDownloadProductionPack.addEventListener('click', () => {
+      const sid = state.currentProducedStoryId;
+      if (!sid || !state.currentSessionId) {
+        alert('Please select and produce a story first.');
+        return;
+      }
+      window.location.href = `/api/export/production_markdown/${state.currentSessionId}/${sid}`;
+    });
+  }
 
   // -------------------------------------------------------------
   // 12. Recursive Expansion (EXPAND ×50)
@@ -1995,6 +2068,7 @@ Payoff: ${currentModalStory.payoff}`;
     btnExportCharBible.disabled = false;
     btnExportRelGraph.disabled = false;
     btnExportCsv.disabled = false;
+    if (btnExportCreatorSchedule) btnExportCreatorSchedule.disabled = false;
     btnExportJson.disabled = false;
     btnExportZip.disabled = false;
 
@@ -2002,6 +2076,9 @@ Payoff: ${currentModalStory.payoff}`;
     btnExportCharBible.onclick = () => window.location.href = `/api/export/character_bible/${sessionId}`;
     btnExportRelGraph.onclick = () => window.location.href = `/api/export/relationship_graph/${sessionId}`;
     btnExportCsv.onclick = () => window.location.href = `/api/export/top_stories_csv/${sessionId}`;
+    if (btnExportCreatorSchedule) {
+      btnExportCreatorSchedule.onclick = () => window.location.href = `/api/export/creator_schedule_csv/${sessionId}`;
+    }
     btnExportJson.onclick = () => window.location.href = `/api/export/universe_json/${sessionId}`;
     btnExportZip.onclick = () => window.location.href = `/api/export/zip/${sessionId}`;
   }

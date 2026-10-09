@@ -883,12 +883,18 @@ def _heal_package_if_needed(package: Dict[str, Any], session_id: str, story_id: 
             package["prompt_package"] = p_pack
             package["compiled_prompts"] = p_pack.get("models", {})
             package["seedance_25_prompt"] = p_pack.get("seedance_25_prompt")
+            package["veo_prompt"] = p_pack.get("veo_prompt")
+            package["veo_2_prompt"] = p_pack.get("veo_2_prompt")
             package["universal_image_prompt"] = p_pack.get("universal_image_prompt")
+            package["midjourney_prompt"] = p_pack.get("midjourney_prompt")
             package["gpt_image_prompt"] = p_pack.get("gpt_image_prompt")
             package["nano_banana_pro_prompt"] = p_pack.get("nano_banana_pro_prompt")
             package["hero_frame_prompt"] = p_pack.get("hero_frame_prompt")
             package["shot_by_shot_prompts"] = p_pack.get("shot_by_shot_prompts", [])
+            package["batch_shots_prompt"] = p_pack.get("batch_shots_prompt", "")
             package["continuity_block"] = p_pack.get("continuity_block", "")
+            from story_forge.engine.production_pipeline import format_production_package_markdown
+            package["markdown_package"] = format_production_package_markdown(package)
             modified = True
         except Exception:
             pass
@@ -912,15 +918,20 @@ def produce_story_endpoint(session_id: str, story_id: str):
     sess = get_session(session_id)
     story_dna = sess.get("story_dna", {}) if sess else {}
 
+    req_ar = request.args.get("aspect_ratio")
+    if not req_ar and request.is_json:
+        req_ar = (request.get_json(silent=True) or {}).get("aspect_ratio")
+    aspect_ratio = req_ar or "9:16"
+
     # Check cache if GET request
     if request.method == "GET":
         cached = get_production_package(session_id, story_id)
-        if cached:
+        if cached and cached.get("aspect_ratio") == aspect_ratio and cached.get("markdown_package"):
             healed = _heal_package_if_needed(cached, session_id, story_id)
             return jsonify({"status": "ok", "package": healed, "cached": True})
 
     # Generate fresh package
-    package = produce_story_package(story, story_dna)
+    package = produce_story_package(story, story_dna, aspect_ratio=aspect_ratio)
     save_production_package(session_id, story_id, package)
 
     # Diagnostic validation & event logging
@@ -952,8 +963,9 @@ def produce_story_endpoint(session_id: str, story_id: str):
 @app.route("/api/production/<session_id>/<story_id>", methods=["GET"])
 def get_production_package_endpoint(session_id: str, story_id: str):
     """Retrieves or auto-generates production package for a story."""
+    req_ar = request.args.get("aspect_ratio") or "9:16"
     cached = get_production_package(session_id, story_id)
-    if cached:
+    if cached and cached.get("aspect_ratio") == req_ar and cached.get("markdown_package"):
         healed = _heal_package_if_needed(cached, session_id, story_id)
         return jsonify({"status": "ok", "package": healed, "cached": True})
     
@@ -1184,6 +1196,13 @@ def export_file(format_name: str, session_id: str):
             mimetype="text/csv; charset=utf-8",
             headers={"Content-Disposition": f"attachment; filename={base_name}_top_stories.csv"}
         )
+    elif format_name in ("creator_schedule_csv", "schedule_csv"):
+        data = export_creator_schedule_csv(session_id)
+        return Response(
+            data,
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename={base_name}_creator_schedule.csv"}
+        )
     elif format_name == "zip":
         zip_bytes = build_full_universe_zip_bundle(session_id)
         return Response(
@@ -1193,6 +1212,30 @@ def export_file(format_name: str, session_id: str):
         )
     else:
         return jsonify({"status": "error", "error": f"Unsupported format: {format_name}"}), 400
+
+@app.route("/api/export/production_markdown/<session_id>/<story_id>", methods=["GET"])
+def export_production_markdown_endpoint(session_id: str, story_id: str):
+    """Exports a single story's production package as a formatted Markdown document."""
+    pkg = get_production_package(session_id, story_id)
+    if not pkg:
+        story = get_story(session_id, story_id)
+        if not story:
+            return jsonify({"status": "error", "error": "Story not found"}), 404
+        sess = get_session(session_id) or {}
+        dna = sess.get("story_dna", {})
+        pkg = produce_story_package(story, dna)
+        save_production_package(session_id, story_id, pkg)
+
+    md_content = pkg.get("markdown_package")
+    if not md_content:
+        from story_forge.engine.production_pipeline import format_production_package_markdown
+        md_content = format_production_package_markdown(pkg)
+
+    return Response(
+        md_content,
+        mimetype="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={story_id}_production_package.md"}
+    )
 
 # -------------------------------------------------------------
 # Diagnostics & Self-Test Endpoints
