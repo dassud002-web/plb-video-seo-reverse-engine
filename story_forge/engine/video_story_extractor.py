@@ -62,9 +62,10 @@ def extract_video_story_evidence(
     # 1. Technical Container & Stream Extraction
     tech_meta = extract_technical_metadata(video_path)
     duration = tech_meta.get("duration_seconds", 0.0)
-    width = tech_meta.get("width")
-    height = tech_meta.get("height")
-    fps = tech_meta.get("fps", 24.0)
+    v_stream = next((s for s in tech_meta.get("streams", []) if s.get("type") == "video"), {})
+    width = tech_meta.get("width") or v_stream.get("width")
+    height = tech_meta.get("height") or v_stream.get("height")
+    fps = tech_meta.get("fps") or v_stream.get("fps") or 24.0
 
     # 2. Sidecar Discovery
     source_files = locate_source_files(video_path)

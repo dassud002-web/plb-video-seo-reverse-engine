@@ -17,7 +17,7 @@ import uuid
 import threading
 import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from flask import Flask, request, jsonify, render_template, send_file, Response
 
 # Add project root to path
@@ -96,6 +96,116 @@ try:
     log_event("APP_READY", module="story_universe_factory", message="Database connection and storage layers ready")
 except Exception:
     pass
+
+# In-memory registry of uploaded video assets for reliable resolution across endpoints
+UPLOADED_ASSETS: Dict[str, Dict[str, Any]] = {}
+UPLOADED_ASSETS_LOCK = threading.Lock()
+
+def resolve_video_target(
+    path_str: Optional[str] = None,
+    original_name: Optional[str] = None,
+    upload_id: Optional[str] = None
+) -> Tuple[Optional[Path], Optional[str], Optional[str]]:
+    """
+    Resolves target video path reliably and safely without depending on CWD.
+    Priority:
+    1. upload_id lookup in UPLOADED_ASSETS or UPLOAD_DIR
+    2. path_str / original_name lookup in UPLOADED_ASSETS
+    3. safe filename or original name match in UPLOAD_DIR (temp_uploads)
+    4. exact absolute path on local filesystem (must exist and have allowed video ext)
+    5. relative path within safe project directories (input, temp_uploads, tests)
+    """
+    clean_path_str = (path_str or "").strip().strip("\"'")
+
+    # 1. upload_id lookup
+    if upload_id:
+        with UPLOADED_ASSETS_LOCK:
+            if upload_id in UPLOADED_ASSETS:
+                rec = UPLOADED_ASSETS[upload_id]
+                p = Path(rec["path"])
+                if p.is_file():
+                    return p, rec.get("original_name") or original_name, None
+
+        prefix = upload_id[:12]
+        matches = list(UPLOAD_DIR.glob(f"{prefix}_*"))
+        for m in matches:
+            try:
+                m.resolve().relative_to(UPLOAD_DIR.resolve())
+                if m.is_file() and m.suffix.lower() in ALLOWED_EXTENSIONS:
+                    return m.resolve(), original_name or m.name, None
+            except ValueError:
+                pass
+        if not clean_path_str and not original_name:
+            return None, None, f"Upload ID not found: {upload_id}"
+
+    # 2. In-memory UPLOADED_ASSETS lookup
+    with UPLOADED_ASSETS_LOCK:
+        lookup_keys = [
+            clean_path_str,
+            clean_path_str.lower() if clean_path_str else None,
+            original_name,
+            original_name.lower() if original_name else None
+        ]
+        for key in lookup_keys:
+            if key and key in UPLOADED_ASSETS:
+                rec = UPLOADED_ASSETS[key]
+                p = Path(rec["path"])
+                if p.is_file():
+                    return p, rec.get("original_name") or original_name, None
+
+    # 3. Check UPLOAD_DIR (temp_uploads) directly
+    if clean_path_str:
+        # A. Exact filename in UPLOAD_DIR
+        target_in_uploads = (UPLOAD_DIR / Path(clean_path_str).name).resolve()
+        try:
+            target_in_uploads.relative_to(UPLOAD_DIR.resolve())
+            if target_in_uploads.is_file() and target_in_uploads.suffix.lower() in ALLOWED_EXTENSIONS:
+                return target_in_uploads, original_name or target_in_uploads.name, None
+        except ValueError:
+            return None, None, "Path traversal detected"
+
+        # B. Pattern match in UPLOAD_DIR for clean stem & extension
+        p_obj = Path(clean_path_str)
+        stem = p_obj.stem
+        ext = p_obj.suffix.lower()
+        if not ext and original_name:
+            ext = Path(original_name).suffix.lower()
+        clean_stem = re.sub(r'[^a-zA-Z0-9_\.-]', '_', stem)[:40].strip('_')
+        if clean_stem and ext:
+            matches = list(UPLOAD_DIR.glob(f"*_{clean_stem}{ext}"))
+            if matches:
+                matches.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                for m in matches:
+                    try:
+                        m.resolve().relative_to(UPLOAD_DIR.resolve())
+                        if m.is_file():
+                            return m.resolve(), original_name or clean_path_str, None
+                    except ValueError:
+                        pass
+
+    # 4. Exact absolute path on local filesystem (existing exact-path workflow)
+    if clean_path_str:
+        abs_cand = Path(clean_path_str)
+        if abs_cand.is_absolute():
+            if abs_cand.is_file():
+                if abs_cand.suffix.lower() not in ALLOWED_EXTENSIONS:
+                    return None, None, f"Unsupported extension '{abs_cand.suffix.lower()}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+                return abs_cand.resolve(), original_name or abs_cand.name, None
+            else:
+                return None, None, f"File does not exist: {clean_path_str}"
+
+    # 5. Relative path in safe project directories (never bare CWD)
+    if clean_path_str:
+        for safe_parent in [UPLOAD_DIR, app_base_dir / "input", app_base_dir / "story_forge" / "tests"]:
+            safe_cand = (safe_parent / clean_path_str).resolve()
+            try:
+                safe_cand.relative_to(safe_parent.resolve())
+                if safe_cand.is_file() and safe_cand.suffix.lower() in ALLOWED_EXTENSIONS:
+                    return safe_cand, original_name or safe_cand.name, None
+            except (ValueError, Exception):
+                pass
+
+    return None, None, f"File does not exist: {clean_path_str or original_name or 'unknown'}"
 
 def cleanup_stale_uploads(ttl_hours: float = 24.0, upload_dir: Path = UPLOAD_DIR) -> int:
     """Cleans up temporary uploads older than ttl_hours, skipping files currently in active tasks."""
@@ -198,12 +308,33 @@ def upload_video():
         uploaded_file.save(str(dest_path))
         size_bytes = dest_path.stat().st_size
         size_mb = round(size_bytes / (1024 * 1024), 2)
+        path_normalized = str(dest_path).replace("\\", "/")
+
+        # Register uploaded asset for reliable lookup by any identifier
+        with UPLOADED_ASSETS_LOCK:
+            rec = {
+                "upload_id": upload_id,
+                "original_name": original_name,
+                "safe_filename": safe_filename,
+                "path": path_normalized,
+                "dest_path": dest_path,
+                "size_mb": size_mb,
+                "size_bytes": size_bytes,
+                "uploaded_at": time.time()
+            }
+            UPLOADED_ASSETS[upload_id] = rec
+            UPLOADED_ASSETS[safe_filename] = rec
+            UPLOADED_ASSETS[original_name] = rec
+            UPLOADED_ASSETS[path_normalized] = rec
+            UPLOADED_ASSETS[str(dest_path)] = rec
+            UPLOADED_ASSETS[original_name.lower()] = rec
+            UPLOADED_ASSETS[safe_filename.lower()] = rec
 
         return jsonify({
             "status": "ok",
             "upload_id": upload_id,
             "original_name": original_name,
-            "path": str(dest_path).replace("\\", "/"),
+            "path": path_normalized,
             "size_mb": size_mb,
             "extension": ext
         })
@@ -254,6 +385,7 @@ def get_recent():
 @app.route("/api/scan", methods=["POST"])
 def scan_video():
     """Fast preliminary inspection of selected video."""
+    upload_id = None
     original_name = None
     target = None
 
@@ -264,33 +396,74 @@ def scan_video():
         res_data = upload_res.get_json()
         target = Path(res_data["path"])
         original_name = res_data.get("original_name")
+        upload_id = res_data.get("upload_id")
     else:
         data = request.get_json() or {}
         path_str = data.get("path", "").strip()
         original_name = data.get("original_name")
-        if not path_str:
+        upload_id = data.get("upload_id")
+        if not path_str and not upload_id and not original_name:
             return jsonify({"status": "error", "error": "No file path provided"}), 400
 
-        target = Path(path_str)
-        if not target.exists():
-            return jsonify({"status": "error", "error": f"File does not exist: {path_str}"}), 404
+        target, resolved_name, err = resolve_video_target(path_str, original_name=original_name, upload_id=upload_id)
+        if err or not target:
+            return jsonify({"status": "error", "error": err or f"File does not exist: {path_str}"}), 404
+        original_name = resolved_name or original_name
 
     try:
         from scripts.video_seo_reverse_engineer import extract_technical_metadata
         meta = extract_technical_metadata(target)
+        v_stream = next((s for s in meta.get("streams", []) if s.get("type") == "video"), {})
+
+        width = meta.get("width") or v_stream.get("width")
+        height = meta.get("height") or v_stream.get("height")
+        fps = meta.get("fps") or v_stream.get("fps") or 24.0
+        codec = meta.get("codec") or v_stream.get("codec") or "unknown"
+        duration = meta.get("duration_seconds", 0.0)
+
+        # OpenCV fallback if resolution or duration is still missing
+        if not width or not height or not duration or codec == "unknown":
+            try:
+                import cv2
+                cap = cv2.VideoCapture(str(target))
+                if cap.isOpened():
+                    if not width or not height:
+                        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        if w > 0 and h > 0:
+                            width, height = w, h
+                    if not duration:
+                        fc = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                        f = cap.get(cv2.CAP_PROP_FPS) or 24.0
+                        if fc > 0 and f > 0:
+                            duration = round(fc / f, 2)
+                            fps = round(f, 2)
+                    if codec == "unknown":
+                        fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
+                        if fourcc:
+                            c = "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)]).strip()
+                            if c:
+                                codec = c.lower()
+                    cap.release()
+            except Exception:
+                pass
+
+        res_str = f"{width}x{height}" if (width and height) else "?x?"
         display_name = original_name or target.name
+
         return jsonify({
             "status": "ok",
             "file_info": {
                 "name": display_name,
                 "server_filename": target.name,
                 "path": str(target).replace("\\", "/"),
+                "upload_id": upload_id,
                 "size_bytes": target.stat().st_size,
                 "size_mb": round(target.stat().st_size / (1024 * 1024), 2),
-                "duration_seconds": meta.get("duration_seconds", 0.0),
-                "resolution": f"{meta.get('width', '?')}x{meta.get('height', '?')}",
-                "fps": meta.get("fps", 24.0),
-                "codec": meta.get("codec", "unknown")
+                "duration_seconds": duration,
+                "resolution": res_str,
+                "fps": fps,
+                "codec": codec
             }
         })
     except Exception as e:
@@ -403,12 +576,14 @@ def analyze_video():
     data = request.get_json() or {}
     path_str = data.get("path", "").strip()
     original_name = data.get("original_name")
-    if not path_str:
+    upload_id = data.get("upload_id")
+    if not path_str and not upload_id and not original_name:
         return jsonify({"status": "error", "error": "No file path provided"}), 400
 
-    target = Path(path_str)
-    if not target.exists():
-        return jsonify({"status": "error", "error": f"File does not exist: {path_str}"}), 404
+    target, resolved_name, err = resolve_video_target(path_str, original_name=original_name, upload_id=upload_id)
+    if err or not target:
+        return jsonify({"status": "error", "error": err or f"File does not exist: {path_str}"}), 404
+    original_name = resolved_name or original_name
 
     settings = {
         "mode": data.get("mode", "AUTO"),
@@ -545,9 +720,11 @@ def generate_universe_endpoint():
     if not session_id and not path_str:
         return jsonify({"status": "error", "error": "Either session_id or path is required"}), 400
 
-    target_path = Path(path_str) if path_str else None
-    if target_path and not target_path.exists():
-        return jsonify({"status": "error", "error": f"Path not found: {path_str}"}), 404
+    target_path = None
+    if path_str:
+        target_path, _, err = resolve_video_target(path_str)
+        if err or not target_path:
+            return jsonify({"status": "error", "error": err or f"Path not found: {path_str}"}), 404
 
     task_id = str(uuid.uuid4())[:8]
     with TASKS_LOCK:

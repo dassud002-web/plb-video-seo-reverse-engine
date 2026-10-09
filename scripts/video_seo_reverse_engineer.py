@@ -141,8 +141,8 @@ def extract_technical_metadata(video_path: Path):
             "ffprobe", "-v", "quiet", "-print_format", "json",
             "-show_format", "-show_streams", str(video_path)
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        probe = json.loads(res.stdout)
+        res = subprocess.run(cmd, capture_output=True, check=True)
+        probe = json.loads(res.stdout.decode("utf-8", errors="replace"))
         
         format_info = probe.get("format", {})
         dur_val = format_info.get("duration")
@@ -212,6 +212,12 @@ def extract_technical_metadata(video_path: Path):
                     "has_b_frames": s.get("has_b_frames"),
                     "level": s.get("level")
                 })
+                if "width" not in meta or meta.get("width") is None:
+                    meta["width"] = s.get("width")
+                    meta["height"] = s.get("height")
+                    meta["fps"] = fps_val
+                    meta["codec"] = s.get("codec_name")
+                    meta["codec_long"] = s.get("codec_long_name")
             elif stype == "audio":
                 sample_rate_raw = s.get("sample_rate")
                 sample_rate_hz = None
@@ -227,6 +233,40 @@ def extract_technical_metadata(video_path: Path):
     except Exception as e:
         meta["error"] = str(e)
         
+    # OpenCV fallback if streams/width/height/fps are missing or ffprobe was unavailable
+    if "width" not in meta or meta.get("width") is None or not meta.get("streams"):
+        try:
+            import cv2
+            cap = cv2.VideoCapture(str(video_path))
+            if cap.isOpened():
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                f = cap.get(cv2.CAP_PROP_FPS) or 24.0
+                fc = cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0
+                dur = round(fc / f, 2) if f > 0 and fc > 0 else 0.0
+                fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
+                codec_tag = "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)]).strip() if fourcc else "unknown"
+                cap.release()
+                if w > 0 and h > 0:
+                    meta["width"] = w
+                    meta["height"] = h
+                    meta["fps"] = round(f, 2)
+                    if not meta.get("duration_seconds") or meta.get("duration_seconds") == 0.0:
+                        meta["duration_seconds"] = dur
+                    if not meta.get("codec") or meta.get("codec") == "unknown":
+                        meta["codec"] = codec_tag.lower() if codec_tag else "unknown"
+                    if not meta.get("streams"):
+                        meta["streams"].append({
+                            "type": "video",
+                            "codec": meta.get("codec", "unknown"),
+                            "width": w,
+                            "height": h,
+                            "fps": round(f, 2),
+                            "total_frames": int(fc)
+                        })
+        except Exception:
+            pass
+
     return meta
 
 def extract_c2pa_provenance(video_path: Path):
@@ -998,7 +1038,7 @@ def analyze_audio_track(video_path: Path, temp_wav_dir: Path):
             "-vn", "-acodec", "pcm_s16le", "-ar", "32000", "-ac", "2",
             str(wav_file)
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
         
         if wav_file.exists() and wav_file.stat().st_size > 44:
             import wave

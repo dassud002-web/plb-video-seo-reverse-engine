@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const state = {
     selectedPath: null,
     originalFileName: null,
+    uploadId: null,
     currentSessionId: null,
     sessionData: null,
     stories: [],
@@ -235,7 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
             pathInput.value = cand.name;
             state.selectedPath = cand.path;
             state.originalFileName = cand.name;
-            inspectVideoPath(cand.path, cand.name);
+            state.uploadId = null;
+            inspectVideoPath(cand.path, cand.name, null);
           });
           candidateBtnsContainer.appendChild(btn);
         });
@@ -295,7 +297,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnScanPath.addEventListener('click', () => {
     const p = pathInput.value.trim();
-    if (p) inspectVideoPath(p, p);
+    if (!p) return;
+    if (state.selectedPath && (p === state.originalFileName || p === state.selectedPath)) {
+      inspectVideoPath(state.selectedPath, state.originalFileName, state.uploadId);
+    } else {
+      state.selectedPath = p;
+      state.originalFileName = p;
+      state.uploadId = null;
+      inspectVideoPath(p, p, null);
+    }
   });
 
   async function uploadAndInspectVideo(file) {
@@ -370,10 +380,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state.selectedPath = uploadRes.path;
         state.originalFileName = uploadRes.original_name;
+        state.uploadId = uploadRes.upload_id;
         pathInput.value = uploadRes.original_name;
 
         // Automatically inspect uploaded server-side temp file
-        await inspectVideoPath(uploadRes.path, uploadRes.original_name);
+        await inspectVideoPath(uploadRes.path, uploadRes.original_name, uploadRes.upload_id);
       } else {
         throw new Error(uploadRes.error || 'Upload failed');
       }
@@ -385,20 +396,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function inspectVideoPath(targetPath, originalName = null) {
+  async function inspectVideoPath(targetPath, originalName = null, uploadId = null) {
     try {
+      const payload = {
+        path: targetPath,
+        original_name: originalName || state.originalFileName || null,
+        upload_id: uploadId || state.uploadId || null
+      };
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: targetPath,
-          original_name: originalName || state.originalFileName
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.status === 'ok') {
         state.selectedPath = data.file_info.path;
         state.originalFileName = data.file_info.name;
+        if (data.file_info.upload_id) {
+          state.uploadId = data.file_info.upload_id;
+        }
         document.getElementById('insp-name').textContent = data.file_info.name;
         document.getElementById('insp-duration').textContent = `${data.file_info.duration_seconds}s`;
         document.getElementById('insp-resolution').textContent = data.file_info.resolution;
@@ -439,6 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({
           path: state.selectedPath,
           original_name: state.originalFileName,
+          upload_id: state.uploadId || null,
           target_count: targetCount,
           threshold: threshold,
           universe_mode: true
