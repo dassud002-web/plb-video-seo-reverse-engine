@@ -114,18 +114,20 @@ class TestBug002SourceVideoIdentity:
             # 1. Video hashes must be distinct
             assert dna_a["source_video_hash"] != dna_b["source_video_hash"]
 
-            # 2. Characters must match their respective videos
-            char_a_name = dna_a["characters"][0]["name"]
-            char_b_name = dna_b["characters"][0]["name"]
-            assert "Forest" in char_a_name or "Adventurer" in char_a_name
-            assert "Cyber" in char_b_name or "Drone" in char_b_name
-            assert char_a_name != char_b_name
+            # 2. Characters must be grounded without raw filename dumping
+            assert dna_a["characters"][0]["name"] == "Observed Protagonist"
+            assert dna_b["characters"][0]["name"] == "Observed Protagonist"
+            assert dna_a["metadata_cue"] == "Forest Adventurer Quest"
+            assert dna_b["metadata_cue"] == "Cyber Drone Over City"
+            assert dna_a["metadata_cue"] != dna_b["metadata_cue"]
 
-            # 3. Core Premises must NOT contain the other video's entities
+            # 3. Core Premises must NOT contain the other video's entities or focal elements
             assert "Drone" not in dna_a["core_premise"]
             assert "Cyber" not in dna_a["core_premise"]
             assert "Forest" not in dna_b["core_premise"]
             assert "Adventurer" not in dna_b["core_premise"]
+            assert "focal element" not in dna_a["core_premise"].lower()
+            assert "focal element" not in dna_b["core_premise"].lower()
 
             # 4. Absolutely ZERO test asset animals in either
             forbidden = ["silkie", "chicken", "rabbit", "bunny", "horseradish", "pekin duck", "puppy", "grapefruit"]
@@ -134,7 +136,7 @@ class TestBug002SourceVideoIdentity:
                 assert f not in dna_b["core_premise"].lower(), f"Leaked '{f}' into DNA B!"
 
     def test_canon_characters_profile_isolation(self):
-        """Canon characters must be derived from actual video, never defaulting to Silkie or Bunny."""
+        """Canon characters must be grounded in video evidence with explicit CV disclosures, never defaulting to Silkie or Bunny."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
             video_path = tmp_path / "Arctic_Polar_Fox.mp4"
@@ -145,8 +147,30 @@ class TestBug002SourceVideoIdentity:
             canon = extract_canon_characters(ev, dna)
 
             assert len(canon) >= 1
-            assert "Fox" in canon[0].name or "Arctic" in canon[0].name
+            assert canon[0].name == "Observed Protagonist"
+            assert canon[0].species == "Unclassified Subject"
+            assert dna["cv_limitation_disclosed"] is True
             assert canon[0].name not in ["White Silkie", "Spotted Bunny", "Pekin Duck", "Slider Turtle"]
+
+    def test_semantic_placeholders_and_focal_elements_eliminated(self):
+        """Verify that 'Focal element', 'Identified as', and raw filename character dumps never appear."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            test_v = tmp_path / "Test_Action_Movie_Scene.mp4"
+            create_synthetic_test_video(test_v, (50, 100, 150))
+
+            ev = extract_video_story_evidence(test_v)
+            dna = build_story_dna(ev)
+            canon = extract_canon_characters(ev, dna)
+
+            dna_str = json.dumps(dna, default=str).lower()
+            assert "focal element" not in dna_str, "Focal element found in Story DNA!"
+            assert "identified as" not in dna_str, "Identified as found in Story DNA!"
+            assert dna["characters"][0]["name"] == "Observed Protagonist"
+            assert canon[0].name == "Observed Protagonist"
+            assert canon[0].species == "Unclassified Subject"
+            assert dna["objects"][0]["name"] == "Foreground Interactive Object"
+            assert dna["cv_limitation_disclosed"] is True
 
     def test_sidecar_discovery_isolation_in_shared_folder(self):
         """In a shared directory, sidecar files belonging to Video A must never attach to Video B."""
@@ -224,4 +248,6 @@ class TestBug002SourceVideoIdentity:
             # Must have created a new session or updated with video_new's metadata
             assert new_session_id != old_session_id
             sess_res = client.get(f"/api/session/{new_session_id}").get_json()
-            assert "Superhero" in sess_res["story_dna"]["characters"][0]["name"] or "Flight" in sess_res["story_dna"]["characters"][0]["name"]
+            assert sess_res["story_dna"]["characters"][0]["name"] == "Observed Protagonist"
+            assert "Superhero" in sess_res["story_dna"]["metadata_cue"] or "Flight" in sess_res["story_dna"]["metadata_cue"]
+            assert sess_res["story_dna"]["source_video"] == "new_superhero_flight.mp4"

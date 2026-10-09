@@ -195,6 +195,7 @@ def build_root_genome(
     story_id = f"UNIV-{story_idx:04d}"
     lead_name = characters[0]["name"] if characters else "Protagonist"
     partner_name = characters[1]["name"] if len(characters) > 1 else ""
+    w_name = world.get("name", "ANIMAL_COMEDY").replace("_", " ").title()
     clean_set = story_dna.get("setting", "The Setting").split(" / ")[0].strip()
     title = f"{w_name}: {lead_name}{f' & {partner_name}' if partner_name else ''} in {clean_set}"
     premise = story_dna.get("core_premise", "An animal explores a mysterious object.")

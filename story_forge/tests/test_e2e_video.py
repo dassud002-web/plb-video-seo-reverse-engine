@@ -136,7 +136,7 @@ def run_e2e_video_tests():
             assert s["generation"] == 1, f"Generation must be 1, got {s['generation']}"
             assert s["diversity_score"] >= 0.65, f"Diversity score too low: {s['diversity_score']}"
             # Strict Noise Suppression
-            for noise_token in ["378c9d", "tjx", "no_watermark", "watermark", "test-reel"]:
+            for noise_token in ["378c9d", "tjx", "no_watermark", "watermark", "test-reel", "focal element"]:
                 assert noise_token not in s["title"].lower(), f"Noise token '{noise_token}' leaked into title: {s['title']}"
                 assert noise_token not in s["one_line_premise"].lower(), f"Noise token '{noise_token}' in premise"
 
