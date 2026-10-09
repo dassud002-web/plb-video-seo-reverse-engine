@@ -185,7 +185,8 @@ def test_story_forge_core():
         assert s["twist"], "Missing twist"
         assert s["payoff"], "Missing payoff"
 
-    print("✅ Exactly 50 distinct root stories verified (all parent_id='ROOT', generation=1, diversity >= 0.70).")
+    print("✅ Root stories verified with honest diversity gating: "
+          f"{len(stories)} passing stories, all parent_id='ROOT', generation=1, diversity >= 0.70.")
 
     # 6. Recursive Expansion (Gen 2: 50 Children)
     print("\n--- TEST 6: Recursive Expansion (EXPAND ×50) ---")
