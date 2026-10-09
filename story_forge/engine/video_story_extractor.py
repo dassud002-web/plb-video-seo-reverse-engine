@@ -87,6 +87,14 @@ def extract_video_story_evidence(
     visual_profile_name = detect_visual_narrative_profile(video_path, source_files, sampled_frames)
     visual_intel = build_visual_evidence_profile(visual_profile_name, sampled_frames, video_path)
 
+    # 7.5 Multi-Timestamp Neural Frame Evidence Pipeline
+    vision_ev = None
+    try:
+        from story_forge.engine.vision_pipeline import extract_multi_timestamp_evidence
+        vision_ev = extract_multi_timestamp_evidence(video_path, num_samples=5, output_frames_dir=output_cache_dir, sampled_frames=sampled_frames)
+    except Exception as e:
+        print(f"Warning: Vision pipeline failed: {e}")
+
     # 8. Compile Granular Evidence Items
     evidence_items: List[Dict[str, Any]] = []
 
@@ -162,6 +170,51 @@ def extract_video_story_evidence(
             source_reference=", ".join(sidecar_names)
         ).to_dict())
 
+    # Multi-Timestamp Vision Pipeline Evidence Layers (Direct Facts, Model Inferences, Hints, Uncertainties)
+    if vision_ev:
+        layers = vision_ev.get("layers", {})
+        evidence_items.append(EvidenceItem(
+            evidence_id="EV-DIRECT-OBSERVATION",
+            level=EvidenceLevel.SOURCE_EVIDENCE.value,
+            evidence_type=EvidenceType.VISUAL_KEYFRAME.value,
+            timestamp_or_frame=f"Multi-Timestamp ({len(vision_ev.get('timestamp_records', []))} Frames)",
+            fact=" | ".join(layers.get("directly_observed_facts", [])),
+            confidence="100% (Direct Fact)",
+            source_reference="opencv_multi_timestamp_sampling"
+        ).to_dict())
+
+        evidence_items.append(EvidenceItem(
+            evidence_id="EV-MODEL-INFERENCE",
+            level=EvidenceLevel.INFERENCE.value,
+            evidence_type=EvidenceType.VISUAL_KEYFRAME.value,
+            timestamp_or_frame="MobileNetV2-ONNX (OpenCV DNN)",
+            fact=" | ".join(layers.get("model_inferences", [])),
+            confidence=f"{vision_ev.get('consensus_entity', {}).get('confidence_pct', 0.0)}% ({vision_ev.get('consensus_entity', {}).get('confidence_tier', 'UNVERIFIED')})",
+            source_reference="mobilenetv2_7_onnx"
+        ).to_dict())
+
+        if layers.get("metadata_hints"):
+            evidence_items.append(EvidenceItem(
+                evidence_id="EV-METADATA-HINTS",
+                level=EvidenceLevel.INFERENCE.value,
+                evidence_type=EvidenceType.SIDECAR_DOC.value,
+                timestamp_or_frame="Filename Metadata",
+                fact=" | ".join(layers.get("metadata_hints", [])),
+                confidence="Creator Reference Hint Only (Unverified Fact)",
+                source_reference=video_path.name
+            ).to_dict())
+
+        if layers.get("uncertain_information"):
+            evidence_items.append(EvidenceItem(
+                evidence_id="EV-UNCERTAINTIES",
+                level=EvidenceLevel.SOURCE_EVIDENCE.value,
+                evidence_type=EvidenceType.VISUAL_KEYFRAME.value,
+                timestamp_or_frame="Epistemological Boundaries",
+                fact=" | ".join(layers.get("uncertain_information", [])),
+                confidence="Disclosed Limitation (Fact)",
+                source_reference="epistemological_audit"
+            ).to_dict())
+
     # Structure 18 Story Extraction Domains
     characters_fact = visual_intel["primary_subjects"]["fact"]
     characters_inference = visual_intel["primary_subjects"]["inference"]
@@ -171,6 +224,18 @@ def extract_video_story_evidence(
 
     setting_fact = visual_intel["setting_environment"]["fact"]
     setting_inference = visual_intel["setting_environment"]["inference"]
+
+    # Ground character and setting if verified by neural vision model in generic profile
+    if visual_profile_name == "generic" and vision_ev and vision_ev.get("consensus_entity", {}).get("is_verified"):
+        cent = vision_ev["consensus_entity"]
+        disp_name = cent.get("display") or cent.get("label", "Observed Subject")
+        sp_name = cent.get("species", "Unclassified Subject")
+        conf_tier = cent.get("confidence_tier", "UNVERIFIED")
+        conf_pct = cent.get("confidence_pct", 0.0)
+        characters_inference = f"{disp_name} ({sp_name})"
+        characters_fact = f"Observed: {disp_name} tracked across {len(vision_ev.get('timestamp_records', []))} timeline milestones ({conf_tier} Confidence: {conf_pct}%)"
+        setting_fact = vision_ev.get("setting_environment", {}).get("description", setting_fact)
+        setting_inference = setting_fact
 
     actions_fact = visual_intel["visible_actions"]["fact"]
     actions_inference = visual_intel["visible_actions"]["inference"]
@@ -309,7 +374,8 @@ def extract_video_story_evidence(
             }
         },
         "visual_profile_name": visual_profile_name,
-        "reasoning_chain": visual_intel["reasoning_chain"]
+        "reasoning_chain": visual_intel["reasoning_chain"],
+        "vision_evidence": vision_ev
     }
 
     return extracted_evidence

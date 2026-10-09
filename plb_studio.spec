@@ -13,6 +13,7 @@ candidate_datas = [
     (project_root / "studio" / "static", "studio/static"),
     (project_root / "scripts", "scripts"),
     (project_root / "input", "input"),
+    (project_root / "story_forge" / "models", "story_forge/models"),
 ]
 
 added_datas = []
@@ -42,6 +43,7 @@ hidden_imports = [
     "story_forge.engine.production_pipeline",
     "story_forge.engine.prompt_compiler",
     "story_forge.engine.doc_registry",
+    "story_forge.engine.vision_pipeline",
     "story_forge.engine.video_story_extractor",
     "story_forge.engine.story_dna",
     "story_forge.engine.story_generator",

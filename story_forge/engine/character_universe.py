@@ -532,16 +532,26 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         ))
         return canon_list
 
-    # Generic canon character: strictly grounded in video evidence with explicit CV limitation disclosure
-    src_name = evidence.get("source_video_name", "")
-    from scripts.video_seo_reverse_engineer import sanitize_filename_tokens
-    clean_toks = sanitize_filename_tokens(src_name)
-    metadata_cue = clean_toks.title() if clean_toks and clean_toks.lower() not in ["video", "vid", "clip", "ref", "test", "target"] else ""
+    # Check if story_dna or evidence contains a verified neural vision entity
+    lead_char = story_dna.get("characters", [{}])[0]
+    dna_char_name = lead_char.get("name", "Observed Protagonist")
+    dna_char_species = lead_char.get("species", "Unclassified Subject")
 
-    # Never dump raw filename string as the character name or infer biological species without sidecar
-    char_display_name = "Observed Protagonist"
-    char_species = "Unclassified Subject"
-    char_breed = "Visual Focus (Local CV Tracked)"
+    vision_ev = evidence.get("vision_evidence") or story_dna.get("vision_evidence")
+    has_verified = bool(vision_ev and vision_ev.get("consensus_entity", {}).get("is_verified"))
+
+    if has_verified and dna_char_name != "Observed Protagonist":
+        cent = vision_ev["consensus_entity"]
+        char_display_name = dna_char_name
+        char_species = dna_char_species
+        char_breed = cent.get("label", dna_char_name)
+        char_temperament = cent.get("temperament", "Alert & Natural")
+    else:
+        # Fallback: strictly grounded in video evidence with explicit CV limitation disclosure
+        char_display_name = "Observed Protagonist"
+        char_species = "Unclassified Subject"
+        char_breed = "Visual Focus (Local CV Tracked)"
+        char_temperament = "Alert & Kinetic"
 
     canon_list.append(CharacterProfile(
         id="CHAR-CANON-01",
@@ -550,7 +560,7 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         breed=char_breed,
         age_class="Adult",
         size_class="Medium",
-        temperament="Alert & Kinetic",
+        temperament=char_temperament,
         natural_behavior=char_fact or "Dynamic foreground focal subject tracked across timeline keyframes",
         movement_style="Timeline-tracked kinetic motion",
         comedy_style="Candid natural reaction",

@@ -35,9 +35,20 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
     clean_vid = sanitize_filename_tokens(video_name)
     metadata_cue = clean_vid.title() if clean_vid and clean_vid.lower() not in ["video", "vid", "clip", "ref", "test", "target"] else ""
 
-    if is_generic or not c_name or c_name.lower() in ["protagonist", "entity", "subject", "lead subject", "foreground focal subject"]:
+    vision_ev = evidence.get("vision_evidence")
+    has_verified_vision = bool(vision_ev and vision_ev.get("consensus_entity", {}).get("is_verified"))
+    c_species = "Unclassified Subject"
+
+    if has_verified_vision:
+        cent = vision_ev["consensus_entity"]
+        c_name = cent.get("display") or cent.get("label", "Observed Subject")
+        c_species = cent.get("species", "Unclassified Subject")
+        classification_status = f"Local Vision Inference ({cent.get('confidence_tier', 'MODERATE')} Confidence: {cent.get('confidence_pct', 0.0)}%)"
+        cv_limitation_disclosed = False
+    elif is_generic or not c_name or c_name.lower() in ["protagonist", "entity", "subject", "lead subject", "foreground focal subject"]:
         c_name = "Observed Protagonist"
-        classification_status = "Visual Detection (Local Offline CV - Deep Neural Classification Offline)"
+        c_species = "Unclassified Subject"
+        classification_status = "Visual Detection (Local Offline CV - Entity Unverified)"
         cv_limitation_disclosed = True
     else:
         classification_status = "Verified Benchmark / Sidecar Profile"
@@ -46,6 +57,7 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
     characters = [
         {
             "name": c_name,
+            "species": c_species,
             "role": "Protagonist",
             "observed_fact": char_fact,
             "count": char_count,
@@ -113,8 +125,13 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
     ]
 
     # Derived High-Level Story Elements
-    if is_generic:
-        clean_setting = setting_fact.replace("Observed: ", "").split(" (")[0]
+    clean_setting = setting_fact.replace("Observed: ", "").split(" (")[0]
+    if has_verified_vision:
+        core_premise = f"In {clean_setting}, the {c_name} investigates {objects[0]['name']}, displaying authentic natural behavior and kinetic reactions."
+        central_tension = f"{c_name} vs. environmental stimuli and {objects[0]['name']} in {setting_infer}."
+        primary_character_dynamic = "Unfiltered natural movement and environmental interaction"
+        primary_comedic_emotional_engine = "Expectation of quiet scene animated by sudden candid animal movement and curiosity"
+    elif is_generic:
         core_premise = f"In {clean_setting}, the {characters[0]['name'].lower()} navigates an authentic visual progression, escalating in kinetic intensity at mid-timeline (35%-65%) before reaching sequence stabilization."
         central_tension = f"{characters[0]['name']} vs. kinetic motion dynamics and environmental stimuli in {setting_infer}."
         primary_character_dynamic = "Unfiltered natural movement and environmental interaction"
@@ -126,7 +143,7 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
         primary_comedic_emotional_engine = "Expectation of a simple event inverted by a rapid, candid physical reaction"
     
     reusable_story_elements = [
-        {"element": "Observed Protagonist", "source": char_fact, "reusability": "High"},
+        {"element": c_name if has_verified_vision else "Observed Protagonist", "source": char_fact, "reusability": "High"},
         {"element": "Interactive Focus", "source": objects_fact, "reusability": "High"},
         {"element": "Unfiltered Kinetic Reaction", "source": ending_fact, "reusability": "Very High"},
         {"element": "Atmospheric Setting", "source": setting_fact, "reusability": "Medium"}
@@ -155,6 +172,10 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
         "classification_status": classification_status,
         "cv_limitation_disclosed": cv_limitation_disclosed,
         "metadata_cue": metadata_cue,
+        "vision_evidence": vision_ev,
+        "directly_observed_facts": vision_ev.get("layers", {}).get("directly_observed_facts", []) if vision_ev else [],
+        "model_inferences": vision_ev.get("layers", {}).get("model_inferences", []) if vision_ev else [],
+        "uncertain_information": vision_ev.get("layers", {}).get("uncertain_information", []) if vision_ev else [],
         # Derived Fields:
         "core_premise": core_premise,
         "central_tension": central_tension,

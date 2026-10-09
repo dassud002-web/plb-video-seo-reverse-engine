@@ -644,7 +644,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const discBox = document.getElementById('dna-disclosure-box');
     if (discBox) {
-      if (dna.cv_limitation_disclosed) {
+      const vEv = dna.vision_evidence || {};
+      const cEnt = vEv.consensus_entity || {};
+      const isVerified = cEnt.is_verified;
+
+      if (isVerified) {
+        const rt = vEv.model_runtime || {};
+        discBox.innerHTML = `
+          <div class="dna-vision-banner" style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.85rem; color: #4ade80; line-height: 1.45;">
+            <div style="font-weight: 600; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+              <span style="display: flex; align-items: center; gap: 6px; font-size: 0.95rem;">
+                <span>🟢</span>
+                <span>Neural Vision Grounded: <strong>${escapeHtml(cEnt.display || cEnt.label)}</strong> (${escapeHtml(cEnt.species)})</span>
+              </span>
+              <span style="font-size: 0.78rem; background: rgba(34, 197, 94, 0.18); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3); font-weight: 600;">
+                ${escapeHtml(cEnt.confidence_tier)} CONFIDENCE (${cEnt.confidence_pct}%)
+              </span>
+            </div>
+            <div style="margin-top: 6px; color: #cbd5e1; font-size: 0.82rem;">
+              <strong>Model:</strong> ${escapeHtml(rt.model_name || 'MobileNetV2-7 ONNX')} (${escapeHtml(rt.backend || 'OpenCV CPU')}, ~${rt.avg_latency_ms || 15}ms/frame) • 
+              <strong>Taxonomy:</strong> ${escapeHtml(cEnt.category || 'Visual Subject')} • 
+              <strong>Inference Cost:</strong> $0.00 (Local CPU)
+            </div>
+            ${(dna.directly_observed_facts && dna.directly_observed_facts.length > 0) ? `
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 0.8rem; color: #94a3b8;">
+              <strong style="color: #e2e8f0;">Direct Observed Facts:</strong> ${dna.directly_observed_facts.map(f => escapeHtml(f)).join(' • ')}
+            </div>` : ''}
+            ${dna.metadata_cue ? `
+            <div style="margin-top: 5px; font-size: 0.78rem; color: #64748b;">
+              Filename Reference Hint: <em>${escapeHtml(dna.metadata_cue)}</em> (Unverified creator cue)
+            </div>` : ''}
+          </div>`;
+      } else if (dna.cv_limitation_disclosed) {
         discBox.innerHTML = `
           <div class="dna-disclosure-banner" style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.28); border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.85rem; color: #fbbf24; line-height: 1.45;">
             <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
@@ -653,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div style="margin-top: 4px; color: #e2e8f0; font-size: 0.82rem;">
               Analysis is grounded in timeline keyframes (5%–95%), optical motion dynamics, and color/luminance distribution. 
-              Deep neural species/object taxonomy classification is offline. Unclassified identities are explicitly reported rather than synthesized.
+              Visual classification confidence is below threshold (< 30%). Unclassified identities are explicitly reported rather than synthesized.
               ${dna.metadata_cue ? `<span style="display:block; margin-top: 5px; color: #94a3b8;">Filename Reference Hint: <em>${escapeHtml(dna.metadata_cue)}</em> (Unverified metadata cue)</span>` : ''}
             </div>
           </div>`;

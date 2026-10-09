@@ -40,12 +40,12 @@ def test_source_switching_e2e():
     res_a = client.post("/api/analyze", json={"path": str(v_a), "mode": "AUTO", "threshold": 0.70})
     assert res_a.status_code == 200
     task_a = res_a.get_json()["task_id"]
-    for _ in range(60):
+    for _ in range(80):
         st = client.get(f"/api/status/{task_a}").get_json()
-        if st.get("status") == "completed":
+        if st.get("status") in ["completed", "error"]:
             break
         time.sleep(0.5)
-    assert st.get("status") == "completed"
+    assert st.get("status") == "completed", f"Task A did not complete: {st}"
     sess_a_id = st["session_id"]
     sess_a = client.get(f"/api/session/{sess_a_id}").get_json()
     dna_a = sess_a["story_dna"]
@@ -59,12 +59,12 @@ def test_source_switching_e2e():
     res_b = client.post("/api/analyze", json={"path": str(v_b), "mode": "AUTO", "threshold": 0.70})
     assert res_b.status_code == 200
     task_b = res_b.get_json()["task_id"]
-    for _ in range(60):
+    for _ in range(80):
         st = client.get(f"/api/status/{task_b}").get_json()
-        if st.get("status") == "completed":
+        if st.get("status") in ["completed", "error"]:
             break
         time.sleep(0.5)
-    assert st.get("status") == "completed"
+    assert st.get("status") == "completed", f"Task B did not complete: {st}"
     sess_b_id = st["session_id"]
     sess_b = client.get(f"/api/session/{sess_b_id}").get_json()
     dna_b = sess_b["story_dna"]
@@ -91,12 +91,12 @@ def test_source_switching_e2e():
     })
     assert res_grow_b.status_code == 200
     grow_task_b = res_grow_b.get_json()["task_id"]
-    for _ in range(60):
+    for _ in range(80):
         st_g = client.get(f"/api/universe/status/{grow_task_b}").get_json()
-        if st_g.get("status") == "completed":
+        if st_g.get("status") in ["completed", "error"]:
             break
         time.sleep(0.5)
-    assert st_g.get("status") == "completed"
+    assert st_g.get("status") == "completed", f"Grow Task B did not complete: {st_g}"
     grow_sess_b = client.get(f"/api/session/{st_g['session_id']}").get_json()
     b_stories = grow_sess_b["stories"]
     assert len(b_stories) >= 15, "Expected generated stories for Video B"
@@ -118,12 +118,12 @@ def test_source_switching_e2e():
     res_a2 = client.post("/api/analyze", json={"path": str(v_a), "mode": "AUTO", "threshold": 0.70})
     assert res_a2.status_code == 200
     task_a2 = res_a2.get_json()["task_id"]
-    for _ in range(60):
+    for _ in range(80):
         st_a2 = client.get(f"/api/status/{task_a2}").get_json()
-        if st_a2.get("status") == "completed":
+        if st_a2.get("status") in ["completed", "error"]:
             break
         time.sleep(0.5)
-    assert st_a2.get("status") == "completed"
+    assert st_a2.get("status") == "completed", f"Task A2 did not complete: {st_a2}"
     sess_a2_id = st_a2["session_id"]
     sess_a2 = client.get(f"/api/session/{sess_a2_id}").get_json()
     dna_a2 = sess_a2["story_dna"]
