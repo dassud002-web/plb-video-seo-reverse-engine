@@ -642,15 +642,27 @@ def _run_universe_generation(
 
         update_task(5, "Resolving session and story DNA context...")
 
+        sess = None
         if session_id:
             sess = get_session(session_id)
-            if not sess:
-                raise ValueError(f"Session {session_id} not found")
+            if sess and video_path:
+                sess_vpath = sess.get("source_video_path") or ""
+                sess_vname = sess.get("source_video_name") or ""
+                try:
+                    is_same_path = (Path(sess_vpath).resolve() == video_path.resolve())
+                except Exception:
+                    is_same_path = False
+                is_same_name = (sess_vname.lower() == video_path.name.lower())
+                if not (is_same_path or is_same_name):
+                    sess = None
+
+        if sess:
             story_dna = sess.get("story_dna", {})
             evidence = {
                 "source_video_name": sess.get("source_video_name", "Video Asset"),
                 "source_video_path": sess.get("source_video_path", ""),
                 "source_video_hash": sess.get("source_video_hash", ""),
+                "visual_profile_name": sess.get("visual_profile_name") or story_dna.get("visual_profile", "generic"),
                 "file_size_bytes": sess.get("file_size_bytes", 0),
                 "technical_metadata": {"duration_seconds": sess.get("duration_seconds", 0.0)},
                 "evidence_items": []
@@ -661,7 +673,7 @@ def _run_universe_generation(
             story_dna = build_story_dna(evidence)
             session_id = str(uuid.uuid4())[:8]
         else:
-            raise ValueError("Either session_id or video_path must be provided")
+            raise ValueError(f"Session {session_id} not found and no video_path provided")
 
         update_task(20, f"Synthesizing Story Universe ({target_count} target stories)...")
         univ_result = generate_story_universe(
@@ -725,6 +737,20 @@ def generate_universe_endpoint():
         target_path, _, err = resolve_video_target(path_str)
         if err or not target_path:
             return jsonify({"status": "error", "error": err or f"Path not found: {path_str}"}), 404
+
+    # Verify session matches target_path to avoid cross-session pollution
+    if target_path and session_id:
+        sess = get_session(session_id)
+        if sess:
+            sess_vpath = sess.get("source_video_path") or ""
+            sess_vname = sess.get("source_video_name") or ""
+            try:
+                is_same_path = (Path(sess_vpath).resolve() == target_path.resolve())
+            except Exception:
+                is_same_path = False
+            is_same_name = (sess_vname.lower() == target_path.name.lower())
+            if not (is_same_path or is_same_name):
+                session_id = None
 
     task_id = str(uuid.uuid4())[:8]
     with TASKS_LOCK:

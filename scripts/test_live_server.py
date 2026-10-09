@@ -22,13 +22,18 @@ def test_live_server():
             assert resp.status == 200
             print("[LIVE SERVER] GET / => HTTP 200 OK")
             
+        generic_target = str(Path(__file__).resolve().parent.parent / "story_forge" / "tests" / "generic_unseen.mp4")
         test_videos = [
             ("Rabbits & Horseradish Target", "C:/Users/Admin/Desktop/google-project/temp_uploads/378c9d_Rabbits & Horseradish_TJX_no_watermark.mp4"),
             ("Chicken Coop Video", "C:/Users/Admin/Downloads/vid/Chicken Coop Video_TJX_no_watermark.mp4"),
-            ("Active Investigation Target", "C:/Users/Admin/Downloads/test-reel/test-reel.mp4")
+            ("Active Investigation Target", "C:/Users/Admin/Downloads/test-reel/test-reel.mp4"),
+            ("Generic Unseen Target", generic_target)
         ]
         
         for name, target_path in test_videos:
+            if not Path(target_path).exists():
+                print(f"Skipping {name} (file not present on disk at {target_path})")
+                continue
             print(f"\n>>> TESTING VIDEO: {name} ({target_path})")
             scan_payload = json.dumps({"path": target_path}).encode("utf-8")
             

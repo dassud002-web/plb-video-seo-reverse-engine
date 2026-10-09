@@ -216,6 +216,91 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------------------------------------------------------------
+  // Clean State & Display Reset on Video Switching
+  // -------------------------------------------------------------
+  function clearUniverseDisplays() {
+    state.currentSessionId = null;
+    state.sessionData = null;
+    state.stories = [];
+    state.lineageGraph = null;
+    state.characterUniverse = null;
+    state.universeMetrics = null;
+    state.currentProducedStoryId = null;
+
+    if (currentSessionLabel) currentSessionLabel.textContent = 'None (Select a video)';
+    if (universeCountBadge) universeCountBadge.textContent = '0 Stories Active';
+
+    // Reset Story DNA tab
+    const dnaAssetName = document.getElementById('dna-asset-name');
+    if (dnaAssetName) dnaAssetName.textContent = state.originalFileName || 'Awaiting Analysis';
+    const dnaCore = document.getElementById('dna-core-premise');
+    if (dnaCore) dnaCore.textContent = 'Click "Start Analysis" on the Video tab to extract Story DNA.';
+    const dnaTens = document.getElementById('dna-central-tension');
+    if (dnaTens) dnaTens.textContent = '-';
+    const dnaDyn = document.getElementById('dna-char-dynamic');
+    if (dnaDyn) dnaDyn.textContent = '-';
+    const dnaEng = document.getElementById('dna-engine');
+    if (dnaEng) dnaEng.textContent = '-';
+    const charsDiv = document.getElementById('dna-chars-setting');
+    if (charsDiv) charsDiv.innerHTML = '<p class="placeholder-text">Click "Start Analysis" on the Video tab to extract Story DNA.</p>';
+    const progDiv = document.getElementById('dna-progression');
+    if (progDiv) progDiv.innerHTML = '';
+    const reusDiv = document.getElementById('dna-reusable');
+    if (reusDiv) reusDiv.innerHTML = '';
+    const evTagsDiv = document.getElementById('dna-evidence-tags');
+    if (evTagsDiv) evTagsDiv.innerHTML = '';
+
+    // Reset Characters tab
+    const canonContainer = document.getElementById('canon-characters-list');
+    if (canonContainer) canonContainer.innerHTML = '<p class="placeholder-text">Canon characters will be extracted when the video is analyzed.</p>';
+    const poolContainer = document.getElementById('creative-pool-list');
+    if (poolContainer) poolContainer.innerHTML = '<p class="placeholder-text">Creative character pool will load when the video is analyzed.</p>';
+    const cuStatCanon = document.getElementById('cu-stat-canon');
+    if (cuStatCanon) cuStatCanon.textContent = '0';
+    const cuStatSpecies = document.getElementById('cu-stat-species');
+    if (cuStatSpecies) cuStatSpecies.textContent = '0';
+    const cuStatPool = document.getElementById('cu-stat-pool');
+    if (cuStatPool) cuStatPool.textContent = '0';
+    const cuStatRel = document.getElementById('cu-stat-relationships');
+    if (cuStatRel) cuStatRel.textContent = '0';
+    const charsSpeciesBadge = document.getElementById('chars-species-badge');
+    if (charsSpeciesBadge) charsSpeciesBadge.textContent = '0 Species Active';
+
+    // Reset Genome tab
+    if (genomeContent) genomeContent.innerHTML = '<p class="placeholder-text">Story genomes will be displayed after analysis.</p>';
+    if (genomeStorySelect) genomeStorySelect.innerHTML = '<option value="">-- No Active Stories --</option>';
+
+    // Reset Universe / Stories tab
+    if (storiesGrid) storiesGrid.innerHTML = '<p class="placeholder-text">Click "Start Analysis" to forge the Story Universe.</p>';
+    const uTotal = document.getElementById('u-total-count');
+    if (uTotal) uTotal.textContent = '0';
+    const uAvgQual = document.getElementById('u-avg-quality');
+    if (uAvgQual) uAvgQual.textContent = '0.0';
+    const uAvgDiv = document.getElementById('u-avg-diversity');
+    if (uAvgDiv) uAvgDiv.textContent = '0.00';
+    const uSpeciesCount = document.getElementById('u-species-count');
+    if (uSpeciesCount) uSpeciesCount.textContent = '0';
+    const uRelCount = document.getElementById('u-rel-count');
+    if (uRelCount) uRelCount.textContent = '0';
+    if (visibleStoriesCount) visibleStoriesCount.textContent = '0';
+    if (totalStoriesCount) totalStoriesCount.textContent = '0';
+
+    // Reset Production tab
+    if (prodContent) prodContent.innerHTML = '<p class="placeholder-text">Select and produce a story package after analysis.</p>';
+    if (prodStorySelect) prodStorySelect.innerHTML = '<option value="">-- No Active Stories --</option>';
+
+    // Reset Compare tab
+    const compareBody = document.getElementById('compare-body');
+    if (compareBody) compareBody.innerHTML = '<p class="placeholder-text">Select a mutated child story to compare against its parent.</p>';
+    const compareLabel = document.getElementById('compare-target-label');
+    if (compareLabel) compareLabel.textContent = 'Select a Story';
+
+    // Reset Lineage Tree tab
+    const canvas = document.getElementById('tree-canvas');
+    if (canvas) canvas.innerHTML = '<p class="placeholder-text">Lineage tree will appear after stories are forged.</p>';
+  }
+
+  // -------------------------------------------------------------
   // 2. Initial Setup: Load Candidates & Recent Sessions
   // -------------------------------------------------------------
   fetchRecentAndCandidates();
@@ -233,6 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.className = 'candidate-btn';
           btn.textContent = `${cand.name} (${cand.size_mb} MB)`;
           btn.addEventListener('click', () => {
+            clearUniverseDisplays();
             pathInput.value = cand.name;
             state.selectedPath = cand.path;
             state.originalFileName = cand.name;
@@ -301,6 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.selectedPath && (p === state.originalFileName || p === state.selectedPath)) {
       inspectVideoPath(state.selectedPath, state.originalFileName, state.uploadId);
     } else {
+      clearUniverseDisplays();
       state.selectedPath = p;
       state.originalFileName = p;
       state.uploadId = null;
@@ -310,6 +397,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function uploadAndInspectVideo(file) {
     if (!file) return;
+
+    // Reset previous universe state so stale results never appear
+    clearUniverseDisplays();
 
     // Show upload progress status box
     uploadStatusBox.style.display = 'flex';

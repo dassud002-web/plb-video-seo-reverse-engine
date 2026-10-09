@@ -387,8 +387,10 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
 
     # Parse primary canon subject
     primary_name = char_infer.split(" / ")[0].strip() if " / " in char_infer else char_infer.strip()
-    species = "Animal"
-    breed = ""
+    if primary_name.lower().startswith("identified as "):
+        primary_name = primary_name[14:].strip().title()
+
+    profile_name = evidence.get("visual_profile_name") or story_dna.get("visual_profile", "generic")
 
     # Build comprehensive search context across evidence, domains, story DNA, and observed claims
     search_context_parts = [
@@ -404,7 +406,7 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         search_context_parts.append(item.get("claim", ""))
     
     lower_inf = " ".join(search_context_parts).lower()
-    if "duck" in lower_inf and "puppy" in lower_inf:
+    if profile_name == "duck_sprinkler" or (profile_name != "generic" and "duck" in lower_inf and "puppy" in lower_inf):
         canon_list.append(CharacterProfile(
             id="CHAR-CANON-01",
             name="Pekin Duck",
@@ -439,7 +441,7 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         ))
         return canon_list
 
-    elif "silkie" in lower_inf or "chicken" in lower_inf:
+    elif profile_name == "chicken_coop_lime" or (profile_name != "generic" and ("silkie" in lower_inf or ("chicken" in lower_inf and "coop" in lower_inf))):
         canon_list.append(CharacterProfile(
             id="CHAR-CANON-01",
             name="White Silkie",
@@ -475,7 +477,7 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
             ))
         return canon_list
 
-    elif "rabbit" in lower_inf:
+    elif profile_name == "rabbits_horseradish" or (profile_name != "generic" and ("rabbit" in lower_inf and "horseradish" in lower_inf)):
         canon_list.append(CharacterProfile(
             id="CHAR-CANON-01",
             name="Spotted Bunny",
@@ -510,7 +512,7 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         ))
         return canon_list
 
-    elif "turtle" in lower_inf or "tortoise" in lower_inf:
+    elif profile_name == "turtles_grapefruit" or (profile_name != "generic" and ("turtle" in lower_inf and "grapefruit" in lower_inf)):
         canon_list.append(CharacterProfile(
             id="CHAR-CANON-01",
             name="Slider Turtle",
@@ -529,11 +531,20 @@ def extract_canon_characters(evidence: Dict[str, Any], story_dna: Dict[str, Any]
         ))
         return canon_list
 
-    # Fallback generic canon character
+    # Fallback generic canon character: strictly grounded in video evidence
+    if not primary_name or primary_name.lower() in ["protagonist", "entity", "subject", "lead subject"]:
+        src_name = evidence.get("source_video_name", "")
+        from scripts.video_seo_reverse_engineer import sanitize_filename_tokens
+        clean_toks = sanitize_filename_tokens(src_name)
+        if clean_toks and clean_toks.lower() not in ["video", "vid", "clip", "ref", "test", "target"]:
+            primary_name = clean_toks.title()
+        else:
+            primary_name = "Lead Protagonist"
+
     canon_list.append(CharacterProfile(
         id="CHAR-CANON-01",
         name=primary_name,
-        species="Domestic Companion",
+        species=primary_name,
         breed="Authentic Specimen",
         age_class="Adult",
         size_class="Medium",

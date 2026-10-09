@@ -220,6 +220,7 @@ def extract_video_story_evidence(
         "original_video_name": display_name,
         "source_video_path": str(video_path),
         "source_video_hash": calculate_video_hash(video_path),
+        "visual_profile_name": visual_profile_name,
         "file_size_bytes": video_path.stat().st_size,
         "technical_metadata": tech_meta,
         "sidecar_files": sidecar_names,

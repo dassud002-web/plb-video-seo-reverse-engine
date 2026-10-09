@@ -23,9 +23,20 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
     char_infer = domains.get("characters", {}).get("inference", "Protagonist")
     char_count = domains.get("characters", {}).get("count", 1)
 
+    c_name = char_infer.split(" / ")[0] if " / " in char_infer else char_infer
+    if c_name.lower().startswith("identified as "):
+        c_name = c_name[14:].strip()
+    if not c_name or c_name.lower() in ["protagonist", "entity", "subject", "lead subject"]:
+        from scripts.video_seo_reverse_engineer import sanitize_filename_tokens
+        clean_vid = sanitize_filename_tokens(video_name)
+        if clean_vid and clean_vid.lower() not in ["video", "vid", "clip", "ref", "test", "target"]:
+            c_name = clean_vid.title()
+        else:
+            c_name = "Lead Protagonist"
+
     characters = [
         {
-            "name": char_infer.split(" / ")[0] if " / " in char_infer else char_infer,
+            "name": c_name,
             "role": "Protagonist",
             "observed_fact": char_fact,
             "count": char_count,
@@ -38,9 +49,15 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
 
     objects_fact = domains.get("objects", {}).get("fact", "Focal element")
     objects_infer = domains.get("objects", {}).get("inference", "Target object")
+    o_name = objects_infer.split(" / ")[0] if " / " in objects_infer else objects_infer
+    if o_name.lower().startswith("identified as "):
+        o_name = o_name[14:].strip()
+    if not o_name or o_name.lower() in ["target object", "focal element", "core visual narrative focal elements"]:
+        o_name = f"Focal Element in {setting_infer}"
+
     objects = [
         {
-            "name": objects_infer.split(" / ")[0] if " / " in objects_infer else objects_infer,
+            "name": o_name,
             "observed_fact": objects_fact,
             "level": EvidenceLevel.SOURCE_EVIDENCE.value
         }
