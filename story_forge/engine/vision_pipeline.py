@@ -68,11 +68,25 @@ _VISION_CLASSES = []
 
 def get_models_dir() -> Path:
     """Locates the models directory, supporting both source and PyInstaller environments."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        base = Path(sys._MEIPASS)
-    else:
-        base = Path(__file__).resolve().parent.parent.parent
-    return base / "story_forge" / "models"
+    candidates = []
+    if getattr(sys, "frozen", False):
+        if hasattr(sys, "_MEIPASS"):
+            candidates.append(Path(sys._MEIPASS) / "story_forge" / "models")
+            candidates.append(Path(sys._MEIPASS) / "models")
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.append(exe_dir / "_internal" / "story_forge" / "models")
+        candidates.append(exe_dir / "story_forge" / "models")
+
+    # Source tree candidates
+    candidates.append(Path(__file__).resolve().parent.parent / "models")
+    candidates.append(Path(__file__).resolve().parent.parent.parent / "story_forge" / "models")
+    candidates.append(Path.cwd() / "story_forge" / "models")
+
+    for c in candidates:
+        if c.exists() and (c / "mobilenetv2-7.onnx").exists():
+            return c
+    return candidates[0]
+
 
 def load_vision_model() -> Tuple[Optional[Any], List[str]]:
     """

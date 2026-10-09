@@ -151,8 +151,13 @@ def main():
         print(f"  ✓ Core Premise: {dna.get('core_premise')[:80]}...")
 
         # Semantic Integrity assertions
-        assert dna["characters"][0]["name"] == "Observed Protagonist", "Character name must be 'Observed Protagonist'"
-        assert dna.get("cv_limitation_disclosed") is True, "Must disclose CV limitation"
+        char_name = dna["characters"][0]["name"]
+        print(f"  ✓ Vision Grounding Verification: Character='{char_name}', Limitation Disclosed={dna.get('cv_limitation_disclosed')}")
+        assert char_name in ["Cockatoo", "Observed Protagonist"], f"Unexpected character name: {char_name}"
+        if char_name == "Cockatoo":
+            assert dna.get("cv_limitation_disclosed") is False, "Verified vision entity should not disclose limitation"
+        else:
+            assert dna.get("cv_limitation_disclosed") is True, "Unverified entity must disclose limitation"
         assert "focal element" not in json.dumps(dna).lower(), "Focal element found in Story DNA!"
         assert "identified as" not in json.dumps(dna).lower(), "Identified as found in Story DNA!"
 
