@@ -89,8 +89,11 @@ def score_story_quality(
     # 7. Short-Form Potential (quick payoff & high retention)
     short_form_pot = round((hook_potency * 0.5) + (comedy_val * 0.5), 1)
 
-    # 8. Loopability (seamless end-to-beginning return)
-    loopability = 90.0 if "loop" in story else 85.0
+    # 8. Loopability (seamless end-to-beginning return).
+    # Only count a loopable structure if the story explicitly declares a loop reset
+    # in its loop field; a single keyword presence anywhere in the dict is not sufficient.
+    loop_field = str(story.get("loop", "") or "")
+    loopability = 90.0 if "loop" in loop_field.lower() else 85.0
 
     # 9. Production Feasibility (safe, realistic, doable in AI or camera)
     prod_feasibility = 92.0

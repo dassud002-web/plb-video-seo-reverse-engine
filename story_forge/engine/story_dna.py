@@ -124,8 +124,16 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
         item.get("evidence_id") for item in evidence.get("evidence_items", [])[:10]
     ]
 
-    # Derived High-Level Story Elements
+    # Confidence is derived from actual vision model output, never hardcoded to 100%.
+    # When the local offline CV verified an entity, use its measured confidence.
+    # Otherwise preserve the unverified low-confidence state so uncertainty is not lost.
+    if has_verified_vision:
+        confidence = min(100.0, float(cent.get("confidence_pct", 0.0)))
+    else:
+        confidence = 0.0
+
     clean_setting = setting_fact.replace("Observed: ", "").split(" (")[0]
+
     if has_verified_vision:
         core_premise = f"In {clean_setting}, the {c_name} investigates {objects[0]['name']}, displaying authentic natural behavior and kinetic reactions."
         central_tension = f"{c_name} vs. environmental stimuli and {objects[0]['name']} in {setting_infer}."
@@ -141,7 +149,7 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
         central_tension = f"{characters[0]['name']} vs. the sensory or physical challenge of {objects[0]['name']}."
         primary_character_dynamic = "Unfiltered curiosity meeting unfamiliar stimulus"
         primary_comedic_emotional_engine = "Expectation of a simple event inverted by a rapid, candid physical reaction"
-    
+
     reusable_story_elements = [
         {"element": c_name if has_verified_vision else "Observed Protagonist", "source": char_fact, "reusability": "High"},
         {"element": "Interactive Focus", "source": objects_fact, "reusability": "High"},
@@ -168,7 +176,7 @@ def build_story_dna(evidence: Dict[str, Any]) -> Dict[str, Any]:
         "payoff": payoff,
         "visual_motifs": visual_motifs,
         "evidence_refs": evidence_refs,
-        "confidence": 1.0,
+        "confidence": confidence,
         "classification_status": classification_status,
         "cv_limitation_disclosed": cv_limitation_disclosed,
         "metadata_cue": metadata_cue,

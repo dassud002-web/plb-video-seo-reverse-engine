@@ -393,16 +393,12 @@ class LocalStoryProvider(BaseStoryProvider):
                 "evidence_refs": ev_refs[:3] if ev_refs else ["EV-FRAME-00"]
             }
 
-            # Enforce Diversity
+            # Compute the actual diversity score against all existing stories.
             score = calculate_story_diversity_score(candidate, stories)
-            if score < threshold and stories:
-                # Mutate candidate to ensure diversity
-                candidate["setting"] = f"Transformed {setting} ({arc['genre']} Edition)"
-                candidate["title"] = f"{arc['name']} — The {arc['genre']} Incident"
-                candidate["one_line_premise"] = f"A radical {arc['genre'].lower()} interpretation where {char_primary} enters {candidate['setting']} to {arc['goal'].lower()}."
-                score = calculate_story_diversity_score(candidate, stories)
-
-            candidate["diversity_score"] = max(score, threshold)
+            # Record the actual computed diversity score; do not manufacture a passing score
+            # by forcing it up to the threshold. A candidate that genuinely fails the
+            # diversity firewall must be reported as below threshold.
+            candidate["diversity_score"] = score
             stories.append(candidate)
 
         return stories

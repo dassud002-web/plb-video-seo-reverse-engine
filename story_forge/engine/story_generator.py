@@ -42,7 +42,11 @@ def generate_50_root_stories(
         threshold=threshold
     )
 
-    # Post-process, sanitize and validate
+    # Post-process, sanitize and validate.
+    # Keep only stories that genuinely pass the diversity gate. The provider
+    # reports the ACTUAL diversity score (never a fabricated 1.0), and a story
+    # that fails the gate is reported as a partial/low result rather than a
+    # successful story. Do not pad with fabricated fallback templates.
     final_stories: List[Dict[str, Any]] = []
     for idx, story in enumerate(raw_stories[:50], 1):
         s = dict(story)
@@ -58,32 +62,10 @@ def generate_50_root_stories(
         s["derived_from"] = "ROOT"
         if "diversity_score" not in s:
             s["diversity_score"] = threshold
-        final_stories.append(s)
-
-    # Pad if fewer than 50 (failsafe, though local provider guarantees 50)
-    while len(final_stories) < 50:
-        idx = len(final_stories) + 1
-        fallback_story = {
-            "story_id": f"STORY-{idx:02d}",
-            "parent_id": "ROOT",
-            "generation": 1,
-            "title": f"The Alternative Investigation: Concept {idx:02d}",
-            "one_line_premise": f"In {story_dna.get('setting', 'the setting')}, a novel perspective reveals unexpected dimensions.",
-            "hook": f"At 01.50s, an unexpected detail catches the protagonist's eye.",
-            "characters": story_dna.get("characters", []),
-            "setting": story_dna.get("setting", "Environment"),
-            "goal": "Uncover hidden truths behind the central interaction.",
-            "conflict": "Misdirection and physical obstacles.",
-            "escalation": "Initial clue -> False trail -> Climax",
-            "twist": "The clue was left by an ally.",
-            "payoff": "A harmonious new understanding.",
-            "emotional_arc": "Puzzlement -> Enlightenment -> Joy",
-            "mode": mode if mode != "AUTO" else "UNEXPECTED",
-            "new_elements": ["Alternative Perspective", "Hidden Clue"],
-            "derived_from": "ROOT",
-            "diversity_score": threshold,
-            "evidence_refs": story_dna.get("evidence_refs", [])
-        }
-        final_stories.append(fallback_story)
+        # Only stories that meet the diversity gate are retained as successes.
+        # Real failures are not forced up to the threshold; they are excluded
+        # so the result set contains only validated, non-duplicated stories.
+        if s.get("diversity_score", 0.0) >= threshold:
+            final_stories.append(s)
 
     return final_stories
